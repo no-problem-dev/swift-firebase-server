@@ -5,6 +5,10 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [セマンティックバージョニング](https://semver.org/lang/ja/spec/v2.0.0.html) に準拠しています。
 
+## [未リリース]
+
+なし
+
 ## [1.0.3] - 2025-12-09
 
 ### 変更
@@ -126,3 +130,5 @@ import FirebaseAuthServer
 <!-- Auto-generated on 2025-12-09T11:13:37Z by release workflow -->
 
 <!-- Auto-generated on 2025-12-09T12:06:18Z by release workflow -->
+
+<!-- Auto-generated on 2025-12-09T12:23:23Z by release workflow -->
