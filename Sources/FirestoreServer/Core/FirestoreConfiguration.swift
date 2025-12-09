@@ -1,9 +1,15 @@
 import Foundation
+import Internal
 
 /// Firestoreクライアントの設定
-public struct FirestoreConfiguration: Sendable {
+public struct FirestoreConfiguration: ServiceConfiguration, EmulatorConfigurable, Sendable {
     /// データベースパス
     public let database: DatabasePath
+
+    /// Google Cloud プロジェクトID
+    public var projectId: String {
+        database.projectId
+    }
 
     /// ベースURL（本番 or エミュレーター）
     public let baseURL: URL
@@ -36,13 +42,30 @@ public struct FirestoreConfiguration: Sendable {
     public static func emulator(
         projectId: String,
         databaseId: String = "(default)",
-        host: String = "localhost",
-        port: Int = 8080,
+        host: String = EmulatorConfig.defaultHost,
+        port: Int = EmulatorConfig.defaultFirestorePort,
         timeout: TimeInterval = 30
     ) -> FirestoreConfiguration {
-        FirestoreConfiguration(
+        let emulator = EmulatorConfig(host: host, port: port)
+        return FirestoreConfiguration(
             database: DatabasePath(projectId: projectId, databaseId: databaseId),
-            baseURL: URL(string: "http://\(host):\(port)/v1")!,
+            baseURL: emulator.buildURL(path: "/v1"),
+            timeout: timeout
+        )
+    }
+
+    /// EmulatorConfigurable準拠
+    public static func emulator(
+        projectId: String,
+        host: String,
+        port: Int,
+        timeout: TimeInterval
+    ) -> FirestoreConfiguration {
+        emulator(
+            projectId: projectId,
+            databaseId: "(default)",
+            host: host,
+            port: port,
             timeout: timeout
         )
     }

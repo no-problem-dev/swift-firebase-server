@@ -1,6 +1,6 @@
 # swift-firestore-server
 
-Firestore REST API client for server-side Swift
+Firebase REST API client for server-side Swift (Firestore & Cloud Storage)
 
 🌐 English | **[日本語](README.md)**
 
@@ -43,6 +43,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 
 - **Vapor Independent** - Lightweight, based on AsyncHTTPClient
 - **Macro-based DSL** - Type-safe access with `@FirestoreSchema`, `@Collection`, `@SubCollection`
+- **Cloud Storage Support** - Type-safe file paths with `@StorageSchema`, `@Folder`, `@Object`
 - **Full REST API Support** - Direct server-side access without Firebase Admin SDK
 - **Swift Concurrency** - Async/await API
 - **Type-safe Queries** - Build filters, sorts, and pagination with type safety
@@ -60,15 +61,19 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        // Firestore
         .product(name: "FirestoreServer", package: "swift-firestore-server"),
         .product(name: "FirestoreSchema", package: "swift-firestore-server"),
+        // Cloud Storage
+        .product(name: "StorageServer", package: "swift-firestore-server"),
+        .product(name: "StorageSchema", package: "swift-firestore-server"),
     ]
 )
 ```
 
-## Basic Usage
+## Firestore
 
-### 1. Define Schema
+#### 1. Define Schema
 
 ```swift
 import FirestoreSchema
@@ -86,7 +91,7 @@ struct AppSchema {
 }
 ```
 
-### 2. Initialize Client
+#### 2. Initialize Client
 
 ```swift
 import FirestoreServer
@@ -105,7 +110,7 @@ let client = FirestoreClient(
 )
 ```
 
-### 3. Document Operations
+#### 3. Document Operations
 
 ```swift
 let schema = AppSchema(client: client)
@@ -126,7 +131,7 @@ try await schema.users("userId").update(["name": "New Name"])
 try await schema.users("userId").delete()
 ```
 
-### 4. Subcollection Access
+#### 4. Subcollection Access
 
 ```swift
 // Get user's posts
@@ -138,7 +143,7 @@ let posts: [Post] = try await schema.users("userId").posts
 try await schema.users("userId").posts("postId").set(newPost)
 ```
 
-### 5. Queries
+#### 5. Queries
 
 ```swift
 // Query with conditions
@@ -177,7 +182,7 @@ let (users, nextCursor) = try await schema.users
     .getWithCursor()
 ```
 
-## Low-level API
+#### Low-level API
 
 Without macros, you can use `CollectionReference` and `DocumentReference` directly:
 
@@ -192,7 +197,7 @@ let query = usersRef.query(as: User.self)
 let users = try await client.runQuery(query)
 ```
 
-## Firestore Value Types
+#### Firestore Value Types
 
 Custom Encoder/Decoder for Firestore REST API value types:
 
@@ -209,6 +214,142 @@ Custom Encoder/Decoder for Firestore REST API value types:
 | `nil` | `nullValue` |
 | `GeoPoint` | `geoPointValue` |
 | `DocumentReference` | `referenceValue` |
+
+## Cloud Storage
+
+Cloud Storage REST API client with macro-based type-safe path construction.
+
+#### 1. Define Schema
+
+```swift
+import StorageSchema
+
+@StorageSchema
+struct AppStorage {
+    @Folder("images")
+    struct Images {
+        @Folder("users")
+        struct Users {
+            @Object("profile")
+            struct Profile {}
+
+            @Object("avatar")
+            struct Avatar {}
+        }
+
+        @Folder("products")
+        struct Products {
+            @Object("thumbnail")
+            struct Thumbnail {}
+        }
+    }
+
+    @Folder("documents")
+    struct Documents {
+        @Object("report")
+        struct Report {}
+    }
+}
+```
+
+#### 2. Initialize Client
+
+```swift
+import StorageServer
+
+// Production
+let client = StorageClient(
+    projectId: "your-project-id",
+    bucket: "your-bucket.appspot.com"
+)
+
+// Emulator
+let config = StorageConfiguration.emulator(
+    projectId: "your-project-id",
+    bucket: "your-bucket"
+)
+let client = StorageClient(configuration: config)
+```
+
+#### 3. Type-safe Path Construction
+
+```swift
+let storage = AppStorage(client: client)
+
+// Path: "images/users/user123.jpg"
+let profilePath = storage.images.users.profile("user123", .jpg)
+
+// Path: "images/products/prod456.png"
+let thumbnailPath = storage.images.products.thumbnail("prod456", .png)
+
+// Path: "documents/report001.pdf"
+let reportPath = storage.documents.report("report001", .pdf)
+```
+
+#### 4. File Operations
+
+```swift
+let path = storage.images.users.profile("user123", .jpg)
+
+// Upload
+let object = try await path.upload(
+    data: imageData,
+    authorization: token
+)
+
+// Download
+let data = try await path.download(authorization: token)
+
+// Get metadata
+let metadata = try await path.getMetadata(authorization: token)
+
+// Delete
+try await path.delete(authorization: token)
+
+// Get public URL
+let url = path.publicURL
+```
+
+#### Low-level API
+
+Without macros, you can use `StorageClient` directly:
+
+```swift
+let client = StorageClient(projectId: "my-project", bucket: "my-bucket")
+
+// Upload
+let object = try await client.upload(
+    data: imageData,
+    path: "images/photo.jpg",
+    contentType: "image/jpeg",
+    authorization: token
+)
+
+// Download
+let data = try await client.download(
+    path: "images/photo.jpg",
+    authorization: token
+)
+
+// Delete
+try await client.delete(path: "images/photo.jpg", authorization: token)
+
+// Public URL
+let url = client.publicURL(for: "images/photo.jpg")
+```
+
+#### Supported File Formats
+
+`FileExtension` enum provides common file formats with Content-Type mapping:
+
+| Category | Extensions |
+|----------|------------|
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.heic`, `.svg`, `.bmp` |
+| Documents | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt`, `.csv` |
+| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
+| Audio | `.mp3`, `.wav`, `.aac`, `.m4a`, `.ogg`, `.flac` |
+| Data | `.json`, `.xml`, `.yaml` |
+| Archives | `.zip`, `.tar`, `.gz`, `.rar` |
 
 ## Requirements
 

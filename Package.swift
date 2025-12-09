@@ -19,6 +19,16 @@ let package = Package(
             name: "FirestoreSchema",
             targets: ["FirestoreSchema"]
         ),
+        // Cloud Storage client
+        .library(
+            name: "StorageServer",
+            targets: ["StorageServer"]
+        ),
+        // Storage Schema DSL with macros
+        .library(
+            name: "StorageSchema",
+            targets: ["StorageSchema"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.23.0"),
@@ -26,10 +36,28 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),
     ],
     targets: [
+        // Internal shared module (not exposed as a product)
+        .target(
+            name: "Internal",
+            dependencies: [
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            ]
+        ),
+
         // Core Firestore client
         .target(
             name: "FirestoreServer",
             dependencies: [
+                "Internal",
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            ]
+        ),
+
+        // Cloud Storage client
+        .target(
+            name: "StorageServer",
+            dependencies: [
+                "Internal",
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
             ]
         ),
@@ -43,9 +71,28 @@ let package = Package(
             ]
         ),
 
-        // Macro implementations (compiler plugin)
+        // Firestore Macro implementations (compiler plugin)
         .macro(
             name: "FirestoreMacros",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ]
+        ),
+
+        // Storage Schema declarations and protocols
+        .target(
+            name: "StorageSchema",
+            dependencies: [
+                "StorageServer",
+                "StorageMacros",
+            ]
+        ),
+
+        // Storage Macro implementations (compiler plugin)
+        .macro(
+            name: "StorageMacros",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
@@ -63,6 +110,18 @@ let package = Package(
             dependencies: [
                 "FirestoreSchema",
                 "FirestoreMacros",
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+            ]
+        ),
+        .testTarget(
+            name: "StorageServerTests",
+            dependencies: ["StorageServer"]
+        ),
+        .testTarget(
+            name: "StorageMacrosTests",
+            dependencies: [
+                "StorageSchema",
+                "StorageMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),

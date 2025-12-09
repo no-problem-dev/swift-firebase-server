@@ -1,6 +1,6 @@
 # swift-firestore-server
 
-サーバーサイドSwift向けFirestore REST APIクライアント
+サーバーサイドSwift向けFirebase REST APIクライアント（Firestore & Cloud Storage）
 
 🌐 **[English](README_EN.md)** | 日本語
 
@@ -43,6 +43,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 
 - **Vapor非依存** - AsyncHTTPClientベースで軽量
 - **マクロベースDSL** - `@FirestoreSchema`、`@Collection`、`@SubCollection`で型安全なアクセス
+- **Cloud Storage対応** - `@StorageSchema`、`@Folder`、`@Object`でファイルパスを型安全に構築
 - **REST API完全対応** - Firebase Admin SDK不要でサーバーサイドから直接アクセス
 - **Swift Concurrency** - async/awaitによる非同期API
 - **型安全なクエリ** - フィルター、ソート、ページネーションをtype-safeに構築
@@ -60,15 +61,19 @@ dependencies: [
 .target(
     name: "YourApp",
     dependencies: [
+        // Firestore
         .product(name: "FirestoreServer", package: "swift-firestore-server"),
         .product(name: "FirestoreSchema", package: "swift-firestore-server"),
+        // Cloud Storage
+        .product(name: "StorageServer", package: "swift-firestore-server"),
+        .product(name: "StorageSchema", package: "swift-firestore-server"),
     ]
 )
 ```
 
-## 基本的な使い方
+## Firestore
 
-### 1. スキーマの定義
+#### 1. スキーマの定義
 
 ```swift
 import FirestoreSchema
@@ -86,7 +91,7 @@ struct AppSchema {
 }
 ```
 
-### 2. クライアントの初期化
+#### 2. クライアントの初期化
 
 ```swift
 import FirestoreServer
@@ -105,7 +110,7 @@ let client = FirestoreClient(
 )
 ```
 
-### 3. ドキュメント操作
+#### 3. ドキュメント操作
 
 ```swift
 let schema = AppSchema(client: client)
@@ -126,7 +131,7 @@ try await schema.users("userId").update(["name": "New Name"])
 try await schema.users("userId").delete()
 ```
 
-### 4. サブコレクションへのアクセス
+#### 4. サブコレクションへのアクセス
 
 ```swift
 // ユーザーの投稿を取得
@@ -138,7 +143,7 @@ let posts: [Post] = try await schema.users("userId").posts
 try await schema.users("userId").posts("postId").set(newPost)
 ```
 
-### 5. クエリ
+#### 5. クエリ
 
 ```swift
 // 条件付きクエリ
@@ -177,7 +182,7 @@ let (users, nextCursor) = try await schema.users
     .getWithCursor()
 ```
 
-### 6. FilterBuilder DSL
+#### 6. FilterBuilder DSL
 
 ResultBuilderベースの宣言的なフィルター構文：
 
@@ -247,7 +252,7 @@ let users = try await schema.users
 - 配列: `.contains()`, `.containsAny()`, `.in()`, `.notIn()`
 - NULL: `.isNull`, `.isNotNull`, `.isNaN`, `.isNotNaN`
 
-## 低レベルAPI
+#### 低レベルAPI
 
 マクロを使わない場合、`CollectionReference`と`DocumentReference`を直接使用できます：
 
@@ -262,7 +267,7 @@ let query = usersRef.query(as: User.self)
 let users = try await client.runQuery(query)
 ```
 
-## Firestoreの値型
+#### Firestoreの値型
 
 Firestore REST APIの値型に対応したカスタムEncoder/Decoderを提供：
 
@@ -279,6 +284,142 @@ Firestore REST APIの値型に対応したカスタムEncoder/Decoderを提供�
 | `nil` | `nullValue` |
 | `GeoPoint` | `geoPointValue` |
 | `DocumentReference` | `referenceValue` |
+
+## Cloud Storage
+
+Cloud Storage REST APIクライアント。マクロベースの型安全なパス構築をサポートします。
+
+#### 1. スキーマの定義
+
+```swift
+import StorageSchema
+
+@StorageSchema
+struct AppStorage {
+    @Folder("images")
+    struct Images {
+        @Folder("users")
+        struct Users {
+            @Object("profile")
+            struct Profile {}
+
+            @Object("avatar")
+            struct Avatar {}
+        }
+
+        @Folder("products")
+        struct Products {
+            @Object("thumbnail")
+            struct Thumbnail {}
+        }
+    }
+
+    @Folder("documents")
+    struct Documents {
+        @Object("report")
+        struct Report {}
+    }
+}
+```
+
+#### 2. クライアントの初期化
+
+```swift
+import StorageServer
+
+// 本番環境
+let client = StorageClient(
+    projectId: "your-project-id",
+    bucket: "your-bucket.appspot.com"
+)
+
+// エミュレーター
+let config = StorageConfiguration.emulator(
+    projectId: "your-project-id",
+    bucket: "your-bucket"
+)
+let client = StorageClient(configuration: config)
+```
+
+#### 3. 型安全なパス構築
+
+```swift
+let storage = AppStorage(client: client)
+
+// パス生成: "images/users/user123.jpg"
+let profilePath = storage.images.users.profile("user123", .jpg)
+
+// パス生成: "images/products/prod456.png"
+let thumbnailPath = storage.images.products.thumbnail("prod456", .png)
+
+// パス生成: "documents/report001.pdf"
+let reportPath = storage.documents.report("report001", .pdf)
+```
+
+#### 4. ファイル操作
+
+```swift
+let path = storage.images.users.profile("user123", .jpg)
+
+// アップロード
+let object = try await path.upload(
+    data: imageData,
+    authorization: token
+)
+
+// ダウンロード
+let data = try await path.download(authorization: token)
+
+// メタデータ取得
+let metadata = try await path.getMetadata(authorization: token)
+
+// 削除
+try await path.delete(authorization: token)
+
+// 公開URL取得
+let url = path.publicURL
+```
+
+#### 低レベルAPI
+
+マクロを使わない場合、`StorageClient`を直接使用できます：
+
+```swift
+let client = StorageClient(projectId: "my-project", bucket: "my-bucket")
+
+// アップロード
+let object = try await client.upload(
+    data: imageData,
+    path: "images/photo.jpg",
+    contentType: "image/jpeg",
+    authorization: token
+)
+
+// ダウンロード
+let data = try await client.download(
+    path: "images/photo.jpg",
+    authorization: token
+)
+
+// 削除
+try await client.delete(path: "images/photo.jpg", authorization: token)
+
+// 公開URL
+let url = client.publicURL(for: "images/photo.jpg")
+```
+
+#### 対応ファイル形式
+
+`FileExtension` enumで一般的なファイル形式とContent-Typeの対応を提供：
+
+| カテゴリ | 拡張子 |
+|---------|--------|
+| 画像 | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.heic`, `.svg`, `.bmp` |
+| ドキュメント | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt`, `.csv` |
+| 動画 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm` |
+| 音声 | `.mp3`, `.wav`, `.aac`, `.m4a`, `.ogg`, `.flac` |
+| データ | `.json`, `.xml`, `.yaml` |
+| アーカイブ | `.zip`, `.tar`, `.gz`, `.rar` |
 
 ## 要件
 

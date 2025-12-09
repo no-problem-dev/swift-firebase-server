@@ -1,5 +1,6 @@
 import AsyncHTTPClient
 import Foundation
+import Internal
 
 /// Firestore REST APIクライアント
 ///
@@ -22,8 +23,8 @@ public final class FirestoreClient: Sendable {
     /// 設定
     public let configuration: FirestoreConfiguration
 
-    /// HTTPクライアント
-    private let httpClient: HTTPClient
+    /// HTTPクライアントプロバイダー
+    private let httpClientProvider: HTTPClientProvider
 
     /// 本番環境用の初期化
     /// - Parameters:
@@ -38,11 +39,16 @@ public final class FirestoreClient: Sendable {
     /// - Parameter configuration: Firestore設定
     public init(configuration: FirestoreConfiguration) {
         self.configuration = configuration
-        self.httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+        self.httpClientProvider = HTTPClientProvider()
     }
 
-    deinit {
-        try? httpClient.syncShutdown()
+    /// 設定と既存のHTTPClientProviderを指定して初期化
+    /// - Parameters:
+    ///   - configuration: Firestore設定
+    ///   - httpClientProvider: 既存のHTTPClientProvider
+    public init(configuration: FirestoreConfiguration, httpClientProvider: HTTPClientProvider) {
+        self.configuration = configuration
+        self.httpClientProvider = httpClientProvider
     }
 
     // MARK: - Reference生成
@@ -68,6 +74,6 @@ public final class FirestoreClient: Sendable {
 
     /// HTTPクライアントへのアクセス（内部用）
     internal var client: HTTPClient {
-        httpClient
+        httpClientProvider.client
     }
 }
