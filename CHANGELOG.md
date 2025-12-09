@@ -9,6 +9,25 @@
 
 なし
 
+## [1.0.5] - 2025-12-10
+
+### 修正
+- **Linux 互換性** - ByteBuffer → Data 変換をクロスプラットフォーム対応
+  - `NIOFoundationCompat` を使用した `ByteBuffer.toData()` 拡張メソッドを追加
+  - macOS専用の `Data(buffer:)` を全箇所で置換（17箇所）
+  - Docker (Linux) 環境でのビルド・実行を検証済み
+- **Swift 6 マクロ互換性** - Swift 6.2 での警告を解消
+
+### 変更
+- **Internal モジュール** - `ByteBufferExtensions.swift` を追加
+  - `swift-nio` を明示的な依存関係として追加
+  - `NIOFoundationCompat` モジュールをインポート
+
+### 対象モジュール
+- FirestoreServer（DocumentOperations, QueryOperations）
+- FirebaseStorageServer（StorageClient）
+- FirebaseAuthServer（PublicKeyCache）
+
 ## [1.0.4] - 2025-12-09
 
 ### 変更
@@ -140,6 +159,7 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.5]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.1...v1.0.2
