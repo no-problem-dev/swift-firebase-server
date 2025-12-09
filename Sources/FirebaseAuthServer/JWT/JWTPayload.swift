@@ -4,78 +4,78 @@ import Foundation
 ///
 /// Firebase Authentication が発行する ID トークンに含まれるクレーム。
 /// [Firebase ドキュメント](https://firebase.google.com/docs/auth/admin/verify-id-tokens) に基づく。
-public struct JWTPayload: Codable, Sendable {
+struct JWTPayload: Codable, Sendable {
     // MARK: - Required Claims
 
     /// トークンの有効期限（UNIX タイムスタンプ）
     ///
     /// この時刻が現在時刻より未来であることを検証
-    public let exp: Int
+    let exp: Int
 
     /// トークンの発行時刻（UNIX タイムスタンプ）
     ///
     /// この時刻が現在時刻より過去であることを検証
-    public let iat: Int
+    let iat: Int
 
     /// 対象者（Audience）
     ///
     /// Firebase プロジェクトID と一致することを検証
-    public let aud: String
+    let aud: String
 
     /// 発行者（Issuer）
     ///
     /// `https://securetoken.google.com/{projectId}` と一致することを検証
-    public let iss: String
+    let iss: String
 
     /// 主体（Subject）= Firebase UID
     ///
     /// 非空文字列であることを検証
-    public let sub: String
+    let sub: String
 
     /// 認証時刻（UNIX タイムスタンプ）
     ///
     /// この時刻が現在時刻より過去であることを検証
-    public let auth_time: Int
+    let auth_time: Int
 
     // MARK: - Optional Claims
 
     /// メールアドレス
-    public let email: String?
+    let email: String?
 
     /// メールアドレス確認済みフラグ
-    public let email_verified: Bool?
+    let email_verified: Bool?
 
     /// ユーザー名
-    public let name: String?
+    let name: String?
 
     /// プロフィール画像URL
-    public let picture: String?
+    let picture: String?
 
     /// 電話番号
-    public let phone_number: String?
+    let phone_number: String?
 
     /// Firebase 認証情報
-    public let firebase: FirebaseClaim?
+    let firebase: FirebaseClaim?
 
     // MARK: - Computed Properties
 
     /// 有効期限（Date 型）
-    public var expiresAt: Date {
+    var expiresAt: Date {
         Date(timeIntervalSince1970: TimeInterval(exp))
     }
 
     /// 発行時刻（Date 型）
-    public var issuedAt: Date {
+    var issuedAt: Date {
         Date(timeIntervalSince1970: TimeInterval(iat))
     }
 
     /// 認証時刻（Date 型）
-    public var authTime: Date {
+    var authTime: Date {
         Date(timeIntervalSince1970: TimeInterval(auth_time))
     }
 
     /// Firebase UID（sub クレームのエイリアス）
-    public var uid: String {
+    var uid: String {
         sub
     }
 }
