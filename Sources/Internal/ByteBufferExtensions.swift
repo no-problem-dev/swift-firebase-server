@@ -1,17 +1,19 @@
 import Foundation
 import NIOCore
+import NIOFoundationCompat
 
 extension ByteBuffer {
     /// ByteBufferをDataに変換（Linux/macOS両対応）
     ///
-    /// macOSでは`Data(buffer:)`が使えるが、LinuxではAPIが異なるため、
-    /// `getData(at:length:)` を使用してクロスプラットフォーム対応する。
+    /// NIOFoundationCompatモジュールの`readData`メソッドを使用して
+    /// クロスプラットフォーム対応する。
     ///
     /// - Returns: ByteBufferの読み取り可能なバイトを含むData
     public func toData() -> Data {
         guard readableBytes > 0 else {
             return Data()
         }
-        return self.getData(at: self.readerIndex, length: self.readableBytes) ?? Data()
+        var mutableSelf = self
+        return mutableSelf.readData(length: mutableSelf.readableBytes) ?? Data()
     }
 }
