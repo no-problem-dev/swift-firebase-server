@@ -1,5 +1,6 @@
 import AsyncHTTPClient
 import Foundation
+import Internal
 import NIOCore
 import NIOHTTP1
 
@@ -48,12 +49,12 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: query.collection.path.rawValue
             )
         }
 
-        let bodyData2 = Data(buffer: body)
+        let bodyData2 = body.toData()
 
         // runQuery returns an array of results
         guard let results = try JSONSerialization.jsonObject(with: bodyData2) as? [[String: Any]] else {

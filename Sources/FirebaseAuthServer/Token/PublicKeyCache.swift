@@ -112,7 +112,7 @@ public actor PublicKeyCache {
 
         // レスポンスボディを取得
         let body = try await response.body.collect(upTo: 1024 * 1024) // 1MB
-        let data = Data(buffer: body)
+        let data = body.toData()
 
         // JSON をパース
         let keys: [String: String]

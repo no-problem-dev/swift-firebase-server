@@ -1,6 +1,6 @@
 import AsyncHTTPClient
 import Foundation
-import Internal
+@_exported import Internal
 import NIOCore
 import NIOHTTP1
 
@@ -93,12 +93,12 @@ public final class StorageClient: Sendable {
         guard response.status == .ok else {
             throw StorageError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: path
             )
         }
 
-        let bodyData = Data(buffer: body)
+        let bodyData = body.toData()
         guard
             let json = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
             let storageObject = StorageObject.fromJSON(json)
@@ -134,12 +134,12 @@ public final class StorageClient: Sendable {
         guard response.status == .ok else {
             throw StorageError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: path
             )
         }
 
-        return Data(buffer: body)
+        return body.toData()
     }
 
     /// ファイルを削除
@@ -167,7 +167,7 @@ public final class StorageClient: Sendable {
             let body = try await response.body.collect(upTo: 1 * 1024 * 1024)
             throw StorageError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: path
             )
         }
@@ -220,12 +220,12 @@ public final class StorageClient: Sendable {
         guard response.status == .ok else {
             throw StorageError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: path
             )
         }
 
-        let bodyData = Data(buffer: body)
+        let bodyData = body.toData()
         guard
             let json = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
             let storageObject = StorageObject.fromJSON(json)

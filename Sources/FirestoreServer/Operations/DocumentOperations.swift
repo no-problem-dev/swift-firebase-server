@@ -1,5 +1,6 @@
 import AsyncHTTPClient
 import Foundation
+import Internal
 import NIOCore
 import NIOHTTP1
 
@@ -45,12 +46,12 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: reference.path.rawValue
             )
         }
 
-        let json = try JSONSerialization.jsonObject(with: Data(buffer: body)) as? [String: Any] ?? [:]
+        let json = try JSONSerialization.jsonObject(with: body.toData()) as? [String: Any] ?? [:]
         return try FirestoreDocument.fromJSON(json)
     }
 
@@ -106,7 +107,7 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: reference.path.rawValue
             )
         }
@@ -160,7 +161,7 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: reference.path.rawValue
             )
         }
@@ -188,7 +189,7 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: reference.path.rawValue
             )
         }
@@ -245,12 +246,12 @@ extension FirestoreClient {
         guard response.status == .ok else {
             throw FirestoreError.fromHTTPResponse(
                 statusCode: Int(response.status.code),
-                body: Data(buffer: body),
+                body: body.toData(),
                 path: collection.path.rawValue
             )
         }
 
-        let json = try JSONSerialization.jsonObject(with: Data(buffer: body)) as? [String: Any] ?? [:]
+        let json = try JSONSerialization.jsonObject(with: body.toData()) as? [String: Any] ?? [:]
 
         var documents: [FirestoreDocument] = []
         if let documentsJSON = json["documents"] as? [[String: Any]] {
