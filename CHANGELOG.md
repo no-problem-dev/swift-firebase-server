@@ -9,6 +9,24 @@
 
 なし
 
+## [1.0.4] - 2025-12-09
+
+### 変更
+- **アクセス修飾子の最適化** - 内部実装の型を `internal` に変更してカプセル化を改善
+  - `JWTHeader`, `JWTPayload`, `JWTDecoder`, `DecodedJWT` (FirebaseAuthServer)
+  - `FirestoreEncoder`, `FirestoreDecoder`, `FirestoreEncodingError`, `FirestoreDecodingError` (FirestoreServer)
+  - `MacroError` (FirestoreMacros), `StorageMacroError` (FirebaseStorageMacros)
+
+### 追加
+- **DocC ドキュメント** - 全5モジュールの DocC ドキュメント生成を設定
+  - FirestoreServer, FirestoreSchema
+  - FirebaseStorageServer, FirebaseStorageSchema
+  - FirebaseAuthServer
+- GitHub Actions ワークフローを更新し、全ターゲットのドキュメントを生成
+
+### ドキュメント
+- README に各モジュールの DocC ドキュメントへの直接リンクを追加
+
 ## [1.0.3] - 2025-12-09
 
 ### 変更
@@ -122,6 +140,7 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.4]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.0...v1.0.1
