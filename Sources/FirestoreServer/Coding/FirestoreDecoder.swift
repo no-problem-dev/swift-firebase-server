@@ -14,15 +14,15 @@ import Foundation
 /// let decoder = FirestoreDecoder()
 /// let user: User = try decoder.decode(User.self, from: firestoreDocument)
 /// ```
-public struct FirestoreDecoder: Sendable {
-    public init() {}
+struct FirestoreDecoder: Sendable {
+    init() {}
 
     /// FirestoreDocumentからDecodableな型に変換
     /// - Parameters:
     ///   - type: デコード先の型
     ///   - document: Firestoreドキュメント
     /// - Returns: デコードされた値
-    public func decode<T: Decodable>(_ type: T.Type, from document: FirestoreDocument) throws -> T {
+    func decode<T: Decodable>(_ type: T.Type, from document: FirestoreDocument) throws -> T {
         try decode(type, from: document.fields)
     }
 
@@ -31,7 +31,7 @@ public struct FirestoreDecoder: Sendable {
     ///   - type: デコード先の型
     ///   - fields: フィールドマップ
     /// - Returns: デコードされた値
-    public func decode<T: Decodable>(_ type: T.Type, from fields: [String: FirestoreValue]) throws -> T {
+    func decode<T: Decodable>(_ type: T.Type, from fields: [String: FirestoreValue]) throws -> T {
         let decoder = _FirestoreDecoder(value: .map(fields))
         return try T(from: decoder)
     }
@@ -41,7 +41,7 @@ public struct FirestoreDecoder: Sendable {
     ///   - type: デコード先の型
     ///   - value: FirestoreValue
     /// - Returns: デコードされた値
-    public func decodeValue<T: Decodable>(_ type: T.Type, from value: FirestoreValue) throws -> T {
+    func decodeValue<T: Decodable>(_ type: T.Type, from value: FirestoreValue) throws -> T {
         let decoder = _FirestoreDecoder(value: value)
         return try T(from: decoder)
     }
@@ -492,14 +492,14 @@ private struct FirestoreSingleValueDecodingContainer: SingleValueDecodingContain
 // MARK: - Error
 
 /// デコーディングエラー
-public enum FirestoreDecodingError: Error, Sendable {
+enum FirestoreDecodingError: Error, Sendable {
     case keyNotFound(String)
     case typeMismatch(expected: String, actual: FirestoreValue)
     case outOfBounds(Int)
 }
 
 extension FirestoreDecodingError: CustomStringConvertible {
-    public var description: String {
+    var description: String {
         switch self {
         case .keyNotFound(let key):
             return "Key not found: \(key)"

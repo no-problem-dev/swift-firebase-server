@@ -1,12 +1,12 @@
 import Foundation
 
 /// マクロ展開時のエラー
-public enum MacroError: Error, CustomStringConvertible {
+enum MacroError: Error, CustomStringConvertible {
     case requiresStruct
     case missingCollectionId
     case invalidArgument(String)
 
-    public var description: String {
+    var description: String {
         switch self {
         case .requiresStruct:
             return "@FirestoreSchema, @Collection, @SubCollection can only be applied to struct declarations"

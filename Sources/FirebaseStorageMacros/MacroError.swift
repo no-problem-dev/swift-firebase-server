@@ -1,13 +1,13 @@
 import Foundation
 
 /// マクロ展開時のエラー
-public enum StorageMacroError: Error, CustomStringConvertible {
+enum StorageMacroError: Error, CustomStringConvertible {
     case requiresStruct
     case missingFolderName
     case missingObjectBaseName
     case invalidArgument(String)
 
-    public var description: String {
+    var description: String {
         switch self {
         case .requiresStruct:
             return "@StorageSchema, @Folder, @Object can only be applied to struct declarations"
