@@ -1,6 +1,6 @@
 # swift-firestore-server
 
-Firebase REST API client for server-side Swift (Firestore & Cloud Storage)
+Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth)
 
 🌐 English | **[日本語](README.md)**
 
@@ -44,6 +44,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 - **Vapor Independent** - Lightweight, based on AsyncHTTPClient
 - **Macro-based DSL** - Type-safe access with `@FirestoreSchema`, `@Collection`, `@SubCollection`
 - **Cloud Storage Support** - Type-safe file paths with `@StorageSchema`, `@Folder`, `@Object`
+- **Firebase Auth Support** - ID token verification for server-side authentication
 - **Full REST API Support** - Direct server-side access without Firebase Admin SDK
 - **Swift Concurrency** - Async/await API
 - **Type-safe Queries** - Build filters, sorts, and pagination with type safety
@@ -67,6 +68,8 @@ dependencies: [
         // Cloud Storage
         .product(name: "StorageServer", package: "swift-firestore-server"),
         .product(name: "StorageSchema", package: "swift-firestore-server"),
+        // Firebase Auth
+        .product(name: "AuthServer", package: "swift-firestore-server"),
     ]
 )
 ```
@@ -350,6 +353,113 @@ let url = client.publicURL(for: "images/photo.jpg")
 | Audio | `.mp3`, `.wav`, `.aac`, `.m4a`, `.ogg`, `.flac` |
 | Data | `.json`, `.xml`, `.yaml` |
 | Archives | `.zip`, `.tar`, `.gz`, `.rar` |
+
+## Firebase Auth
+
+Firebase ID token verification client. Verify ID tokens sent from clients and authenticate users.
+
+#### 1. Initialize Client
+
+```swift
+import AuthServer
+
+// Production
+let authClient = AuthClient(projectId: "your-project-id")
+
+// Emulator
+let config = AuthConfiguration.emulator(projectId: "your-project-id")
+let authClient = AuthClient(configuration: config)
+```
+
+#### 2. Verify ID Token
+
+```swift
+// Verify token directly
+let verifiedToken = try await authClient.verifyIDToken(idToken)
+print("User ID: \(verifiedToken.uid)")
+print("Email: \(verifiedToken.email ?? "none")")
+
+// Verify from Authorization header (for middleware use)
+let authHeader = request.headers["Authorization"].first ?? ""
+let verifiedToken = try await authClient.verifyAuthorizationHeader(authHeader)
+```
+
+#### 3. Verified Token Information
+
+```swift
+let token = try await authClient.verifyIDToken(idToken)
+
+// Basic information
+token.uid              // Firebase UID
+token.email            // Email address (optional)
+token.emailVerified    // Email verified flag
+token.name             // User name (optional)
+token.picture          // Profile picture URL (optional)
+token.phoneNumber      // Phone number (optional)
+
+// Authentication information
+token.authTime         // Authentication time
+token.issuedAt         // Token issued time
+token.expiresAt        // Token expiration time
+token.signInProvider   // Sign-in provider ("google.com", "apple.com", etc.)
+```
+
+#### 4. Vapor Middleware Example
+
+```swift
+import Vapor
+import AuthServer
+
+struct FirebaseAuthMiddleware: AsyncMiddleware {
+    let authClient: AuthClient
+
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        guard let authHeader = request.headers["Authorization"].first else {
+            throw Abort(.unauthorized, reason: "Missing authorization header")
+        }
+
+        do {
+            let verifiedToken = try await authClient.verifyAuthorizationHeader(authHeader)
+            // Store user ID in request
+            request.storage[UserIDKey.self] = verifiedToken.uid
+            return try await next.respond(to: request)
+        } catch let error as AuthError {
+            throw Abort(.unauthorized, reason: error.description)
+        }
+    }
+}
+```
+
+#### 5. Error Handling
+
+```swift
+do {
+    let token = try await authClient.verifyIDToken(idToken)
+} catch AuthError.tokenMissing {
+    // Authorization header is missing
+} catch AuthError.tokenExpired(let expiredAt) {
+    // Token has expired
+} catch AuthError.tokenInvalid(let reason) {
+    // Token format is invalid
+} catch AuthError.signatureInvalid {
+    // Signature is invalid
+} catch AuthError.userNotFound {
+    // User ID is empty
+}
+
+// Error code (Go backend compatible)
+let errorCode = error.errorCode  // "AUTH_TOKEN_EXPIRED", etc.
+```
+
+#### Error Codes
+
+| Error | Code | Description |
+|-------|------|-------------|
+| `tokenMissing` | `AUTH_TOKEN_MISSING` | Authorization header is missing |
+| `tokenInvalid` | `AUTH_TOKEN_INVALID` | Token format is invalid |
+| `tokenExpired` | `AUTH_TOKEN_EXPIRED` | Token has expired |
+| `verificationFailed` | `AUTH_VERIFICATION_FAILED` | Verification failed |
+| `userNotFound` | `AUTH_USER_NOT_FOUND` | User ID is empty |
 
 ## Requirements
 

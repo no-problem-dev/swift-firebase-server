@@ -1,6 +1,6 @@
 # swift-firestore-server
 
-サーバーサイドSwift向けFirebase REST APIクライアント（Firestore & Cloud Storage）
+サーバーサイドSwift向けFirebase REST APIクライアント（Firestore & Cloud Storage & Auth）
 
 🌐 **[English](README_EN.md)** | 日本語
 
@@ -44,6 +44,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 - **Vapor非依存** - AsyncHTTPClientベースで軽量
 - **マクロベースDSL** - `@FirestoreSchema`、`@Collection`、`@SubCollection`で型安全なアクセス
 - **Cloud Storage対応** - `@StorageSchema`、`@Folder`、`@Object`でファイルパスを型安全に構築
+- **Firebase Auth対応** - IDトークン検証でサーバーサイド認証を実装
 - **REST API完全対応** - Firebase Admin SDK不要でサーバーサイドから直接アクセス
 - **Swift Concurrency** - async/awaitによる非同期API
 - **型安全なクエリ** - フィルター、ソート、ページネーションをtype-safeに構築
@@ -67,6 +68,8 @@ dependencies: [
         // Cloud Storage
         .product(name: "StorageServer", package: "swift-firestore-server"),
         .product(name: "StorageSchema", package: "swift-firestore-server"),
+        // Firebase Auth
+        .product(name: "AuthServer", package: "swift-firestore-server"),
     ]
 )
 ```
@@ -420,6 +423,113 @@ let url = client.publicURL(for: "images/photo.jpg")
 | 音声 | `.mp3`, `.wav`, `.aac`, `.m4a`, `.ogg`, `.flac` |
 | データ | `.json`, `.xml`, `.yaml` |
 | アーカイブ | `.zip`, `.tar`, `.gz`, `.rar` |
+
+## Firebase Auth
+
+Firebase IDトークン検証クライアント。クライアントから送信されたIDトークンを検証し、ユーザーを認証します。
+
+#### 1. クライアントの初期化
+
+```swift
+import AuthServer
+
+// 本番環境
+let authClient = AuthClient(projectId: "your-project-id")
+
+// エミュレーター
+let config = AuthConfiguration.emulator(projectId: "your-project-id")
+let authClient = AuthClient(configuration: config)
+```
+
+#### 2. IDトークンの検証
+
+```swift
+// トークンを直接検証
+let verifiedToken = try await authClient.verifyIDToken(idToken)
+print("User ID: \(verifiedToken.uid)")
+print("Email: \(verifiedToken.email ?? "none")")
+
+// Authorizationヘッダーから検証（ミドルウェアでの使用）
+let authHeader = request.headers["Authorization"].first ?? ""
+let verifiedToken = try await authClient.verifyAuthorizationHeader(authHeader)
+```
+
+#### 3. 検証済みトークンの情報
+
+```swift
+let token = try await authClient.verifyIDToken(idToken)
+
+// 基本情報
+token.uid              // Firebase UID
+token.email            // メールアドレス（オプション）
+token.emailVerified    // メール確認済みフラグ
+token.name             // ユーザー名（オプション）
+token.picture          // プロフィール画像URL（オプション）
+token.phoneNumber      // 電話番号（オプション）
+
+// 認証情報
+token.authTime         // 認証時刻
+token.issuedAt         // トークン発行時刻
+token.expiresAt        // トークン有効期限
+token.signInProvider   // サインインプロバイダー（"google.com", "apple.com"等）
+```
+
+#### 4. Vaporでのミドルウェア例
+
+```swift
+import Vapor
+import AuthServer
+
+struct FirebaseAuthMiddleware: AsyncMiddleware {
+    let authClient: AuthClient
+
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        guard let authHeader = request.headers["Authorization"].first else {
+            throw Abort(.unauthorized, reason: "Missing authorization header")
+        }
+
+        do {
+            let verifiedToken = try await authClient.verifyAuthorizationHeader(authHeader)
+            // ユーザーIDをリクエストに保存
+            request.storage[UserIDKey.self] = verifiedToken.uid
+            return try await next.respond(to: request)
+        } catch let error as AuthError {
+            throw Abort(.unauthorized, reason: error.description)
+        }
+    }
+}
+```
+
+#### 5. エラーハンドリング
+
+```swift
+do {
+    let token = try await authClient.verifyIDToken(idToken)
+} catch AuthError.tokenMissing {
+    // Authorizationヘッダーがない
+} catch AuthError.tokenExpired(let expiredAt) {
+    // トークンの有効期限切れ
+} catch AuthError.tokenInvalid(let reason) {
+    // トークン形式が不正
+} catch AuthError.signatureInvalid {
+    // 署名が不正
+} catch AuthError.userNotFound {
+    // ユーザーIDが空
+}
+
+// エラーコード（Goバックエンド互換）
+let errorCode = error.errorCode  // "AUTH_TOKEN_EXPIRED" など
+```
+
+#### エラーコード一覧
+
+| エラー | コード | 説明 |
+|--------|--------|------|
+| `tokenMissing` | `AUTH_TOKEN_MISSING` | Authorizationヘッダーがない |
+| `tokenInvalid` | `AUTH_TOKEN_INVALID` | トークン形式が不正 |
+| `tokenExpired` | `AUTH_TOKEN_EXPIRED` | トークンの有効期限切れ |
+| `verificationFailed` | `AUTH_VERIFICATION_FAILED` | 検証失敗 |
+| `userNotFound` | `AUTH_USER_NOT_FOUND` | ユーザーIDが空 |
 
 ## 要件
 
