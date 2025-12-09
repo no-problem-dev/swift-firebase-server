@@ -18,6 +18,28 @@
   - `Query.filter { }` - DSLを使用したフィルター追加
 - `FirestoreValueConvertible` - Swift標準型からFirestoreValueへの変換プロトコル
 
+- **StorageServer** - Cloud Storage REST APIクライアント
+  - `StorageClient` - アップロード、ダウンロード、削除、メタデータ取得
+  - `StorageConfiguration` - 本番環境/エミュレーター対応
+  - `StorageObject` - ファイルメタデータモデル
+  - `StorageError` - 包括的なエラーハンドリング
+
+- **StorageSchema マクロDSL** - 型安全なストレージスキーマ定義
+  - `@StorageSchema` - ルートスキーマ定義マクロ
+  - `@Folder("id")` - 階層的フォルダ構造定義
+  - `@Object("id")` - ファイルオブジェクトパス定義
+  - `FileExtension` - 一般的なファイル形式のContent-Typeマッピング
+  - `StorageSchemaProtocol` / `StorageFolderProtocol` / `StorageObjectPathProtocol`
+
+- **Internal（共有モジュール）**
+  - `HTTPClientProvider` - 共有HTTPクライアント管理
+  - `APIError` - Firebase REST API共通エラー
+  - `ServiceConfiguration` プロトコルと `EmulatorConfig`
+
+### 変更
+- FirestoreServerをInternalモジュールを使用するようにリファクタリング
+- `FirestoreError` が共通エラーケースで `APIError` をラップするように変更
+
 ### 削除
 - `QueryResult<T>` - 未使用の構造体を削除
 
@@ -50,6 +72,5 @@
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.1]: https://github.com/no-problem-dev/swift-firestore-server/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/no-problem-dev/swift-firestore-server/releases/tag/v1.0.0
-
-<!-- Auto-generated on 2025-12-09T01:10:28Z by release workflow -->
