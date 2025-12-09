@@ -29,15 +29,58 @@ jobs:
         with:
           xcode-version: '26.0'
 
-      - name: Generate Documentation
+      - name: Generate Documentation for FirestoreServer
         run: |
-          swift package --allow-writing-to-directory ./docs \
+          swift package --allow-writing-to-directory ./docs/firestoreserver \
             generate-documentation \
             --target FirestoreServer \
             --disable-indexing \
             --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server \
-            --output-path ./docs
+            --hosting-base-path swift-firebase-server/firestoreserver \
+            --output-path ./docs/firestoreserver
+
+      - name: Generate Documentation for FirestoreSchema
+        run: |
+          swift package --allow-writing-to-directory ./docs/firestoreschema \
+            generate-documentation \
+            --target FirestoreSchema \
+            --disable-indexing \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-firebase-server/firestoreschema \
+            --output-path ./docs/firestoreschema
+
+      - name: Generate Documentation for FirebaseStorageServer
+        run: |
+          swift package --allow-writing-to-directory ./docs/firebasestorageserver \
+            generate-documentation \
+            --target FirebaseStorageServer \
+            --disable-indexing \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-firebase-server/firebasestorageserver \
+            --output-path ./docs/firebasestorageserver
+
+      - name: Generate Documentation for FirebaseStorageSchema
+        run: |
+          swift package --allow-writing-to-directory ./docs/firebasestorageschema \
+            generate-documentation \
+            --target FirebaseStorageSchema \
+            --disable-indexing \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-firebase-server/firebasestorageschema \
+            --output-path ./docs/firebasestorageschema
+
+      - name: Generate Documentation for FirebaseAuthServer
+        run: |
+          swift package --allow-writing-to-directory ./docs/firebaseauthserver \
+            generate-documentation \
+            --target FirebaseAuthServer \
+            --disable-indexing \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-firebase-server/firebaseauthserver \
+            --output-path ./docs/firebaseauthserver
+
+      - name: Copy index page
+        run: cp ./docs-template/index.html ./docs/index.html
 
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'

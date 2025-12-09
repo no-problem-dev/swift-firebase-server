@@ -8,7 +8,12 @@ Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-📚 **[API Reference (DocC)](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)**
+📚 **API Reference (DocC)**
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API client
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - Type-safe schema DSL
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage client
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - Type-safe Storage schema DSL
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID token verification
 
 ## Features
 
@@ -477,7 +482,7 @@ MIT License - See [LICENSE](LICENSE) for details
 
 ## Support
 
-- 📚 [API Reference (DocC)](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)
+- 📚 API Reference (DocC): [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) | [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) | [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) | [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) | [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/)
 - 🐛 [Issue Reports](https://github.com/no-problem-dev/swift-firebase-server/issues)
 - 💬 [Discussions](https://github.com/no-problem-dev/swift-firebase-server/discussions)
 

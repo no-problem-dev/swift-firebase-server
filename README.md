@@ -8,7 +8,12 @@
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-📚 **[APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)**
+📚 **APIリファレンス（DocC）**
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API クライアント
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - 型安全なスキーマ DSL
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage クライアント
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - 型安全な Storage スキーマ DSL
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID トークン検証
 
 ## 特徴
 
@@ -547,7 +552,7 @@ MIT License - 詳細は [LICENSE](LICENSE) を参照
 
 ## サポート
 
-- 📚 [APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)
+- 📚 APIリファレンス（DocC）: [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) | [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) | [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) | [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) | [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/)
 - 🐛 [Issue報告](https://github.com/no-problem-dev/swift-firebase-server/issues)
 - 💬 [ディスカッション](https://github.com/no-problem-dev/swift-firebase-server/discussions)
 

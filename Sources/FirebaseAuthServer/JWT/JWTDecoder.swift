@@ -4,14 +4,14 @@ import Foundation
 ///
 /// Firebase ID トークン（JWT）を解析し、ヘッダー・ペイロード・署名に分解する。
 /// Base64URL デコードと JSON パースを担当。
-public struct JWTDecoder: Sendable {
-    public init() {}
+struct JWTDecoder: Sendable {
+    init() {}
 
     /// JWT トークンを分解してデコード
     /// - Parameter token: JWT 文字列（"xxxxx.yyyyy.zzzzz" 形式）
     /// - Returns: デコード結果（ヘッダー、ペイロード、署名、署名対象データ）
     /// - Throws: `AuthError.tokenInvalid` デコードに失敗した場合
-    public func decode(_ token: String) throws -> DecodedJWT {
+    func decode(_ token: String) throws -> DecodedJWT {
         let parts = token.split(separator: ".")
 
         guard parts.count == 3 else {
@@ -84,16 +84,16 @@ public struct JWTDecoder: Sendable {
 // MARK: - DecodedJWT
 
 /// デコードされた JWT
-public struct DecodedJWT: Sendable {
+struct DecodedJWT: Sendable {
     /// JWT ヘッダー
-    public let header: JWTHeader
+    let header: JWTHeader
 
     /// JWT ペイロード（クレーム）
-    public let payload: JWTPayload
+    let payload: JWTPayload
 
     /// 署名バイナリ
-    public let signature: Data
+    let signature: Data
 
     /// 署名対象データ（header.payload）
-    public let signedData: Data
+    let signedData: Data
 }

@@ -15,13 +15,13 @@ import Foundation
 /// let fields = try encoder.encode(User(name: "Alice", age: 30))
 /// // ["name": .string("Alice"), "age": .integer(30)]
 /// ```
-public struct FirestoreEncoder: Sendable {
-    public init() {}
+struct FirestoreEncoder: Sendable {
+    init() {}
 
     /// Encodableな値をFirestoreフィールドマップに変換
     /// - Parameter value: エンコードする値
     /// - Returns: フィールド名とFirestoreValueのマップ
-    public func encode<T: Encodable>(_ value: T) throws -> [String: FirestoreValue] {
+    func encode<T: Encodable>(_ value: T) throws -> [String: FirestoreValue] {
         let encoder = _FirestoreEncoder()
         try value.encode(to: encoder)
 
@@ -34,7 +34,7 @@ public struct FirestoreEncoder: Sendable {
     /// Encodableな値を単一のFirestoreValueに変換
     /// - Parameter value: エンコードする値
     /// - Returns: FirestoreValue
-    public func encodeValue<T: Encodable>(_ value: T) throws -> FirestoreValue {
+    func encodeValue<T: Encodable>(_ value: T) throws -> FirestoreValue {
         let encoder = _FirestoreEncoder()
         try value.encode(to: encoder)
         return encoder.value
@@ -380,13 +380,13 @@ private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContain
 // MARK: - Error
 
 /// エンコーディングエラー
-public enum FirestoreEncodingError: Error, Sendable {
+enum FirestoreEncodingError: Error, Sendable {
     case topLevelNotObject
     case unsupportedType(Any.Type)
 }
 
 extension FirestoreEncodingError: CustomStringConvertible {
-    public var description: String {
+    var description: String {
         switch self {
         case .topLevelNotObject:
             return "Top-level value must encode to an object (map)"
