@@ -29,11 +29,17 @@ let package = Package(
             name: "StorageSchema",
             targets: ["StorageSchema"]
         ),
+        // Firebase Auth client (ID token verification)
+        .library(
+            name: "AuthServer",
+            targets: ["AuthServer"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.23.0"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     ],
     targets: [
         // Internal shared module (not exposed as a product)
@@ -100,6 +106,17 @@ let package = Package(
             ]
         ),
 
+        // Firebase Auth client (ID token verification)
+        .target(
+            name: "AuthServer",
+            dependencies: [
+                "Internal",
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "_CryptoExtras", package: "swift-crypto"),
+            ]
+        ),
+
         // Tests
         .testTarget(
             name: "FirestoreServerTests",
@@ -124,6 +141,10 @@ let package = Package(
                 "StorageMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
+        ),
+        .testTarget(
+            name: "AuthServerTests",
+            dependencies: ["AuthServer"]
         ),
     ]
 )
