@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import StorageServer
+@testable import FirebaseStorageServer
 
 @Suite("Storage Configuration Tests")
 struct StorageConfigurationTests {

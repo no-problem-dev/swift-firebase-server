@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import AuthServer
+@testable import FirebaseAuthServer
 
 @Suite("Verified Token Tests")
 struct VerifiedTokenTests {

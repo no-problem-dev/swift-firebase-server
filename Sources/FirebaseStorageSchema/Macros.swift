@@ -26,7 +26,7 @@
 @attached(member, names: named(client), named(init))
 @attached(memberAttribute)
 @attached(extension, conformances: StorageSchemaProtocol, Sendable)
-public macro StorageSchema() = #externalMacro(module: "StorageMacros", type: "StorageSchemaMacro")
+public macro StorageSchema() = #externalMacro(module: "FirebaseStorageMacros", type: "StorageSchemaMacro")
 
 /// Storageフォルダを定義するマクロ
 ///
@@ -42,7 +42,7 @@ public macro StorageSchema() = #externalMacro(module: "StorageMacros", type: "St
 @attached(member, names: named(client), named(parentPath), named(init))
 @attached(memberAttribute)
 @attached(extension, conformances: StorageFolderProtocol, Sendable)
-public macro Folder(_ folderName: String) = #externalMacro(module: "StorageMacros", type: "FolderMacro")
+public macro Folder(_ folderName: String) = #externalMacro(module: "FirebaseStorageMacros", type: "FolderMacro")
 
 /// Storageオブジェクト（ファイル）を定義するマクロ
 ///
@@ -62,4 +62,4 @@ public macro Folder(_ folderName: String) = #externalMacro(module: "StorageMacro
 /// ```
 @attached(member, names: named(client), named(parentPath), named(objectId), named(fileExtension), named(init))
 @attached(extension, conformances: StorageObjectPathProtocol, Sendable)
-public macro Object(_ baseName: String) = #externalMacro(module: "StorageMacros", type: "ObjectMacro")
+public macro Object(_ baseName: String) = #externalMacro(module: "FirebaseStorageMacros", type: "ObjectMacro")

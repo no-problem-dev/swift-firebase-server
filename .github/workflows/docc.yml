@@ -36,7 +36,7 @@ jobs:
             --target FirestoreServer \
             --disable-indexing \
             --transform-for-static-hosting \
-            --hosting-base-path swift-firestore-server \
+            --hosting-base-path swift-firebase-server \
             --output-path ./docs
 
       - name: Upload artifact

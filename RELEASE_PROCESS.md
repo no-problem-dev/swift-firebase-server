@@ -1,6 +1,6 @@
 # リリースプロセスガイド
 
-swift-firestore-serverの新バージョンをリリースする手順を説明します。
+swift-firebase-serverの新バージョンをリリースする手順を説明します。
 
 ## 📋 リリース手順
 

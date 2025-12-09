@@ -1,4 +1,4 @@
-# swift-firestore-server
+# swift-firebase-server
 
 Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth)
 
@@ -8,7 +8,7 @@ Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-📚 **[API Reference (DocC)](https://no-problem-dev.github.io/swift-firestore-server/documentation/firestoreserver/)**
+📚 **[API Reference (DocC)](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)**
 
 ## Features
 
@@ -55,7 +55,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/no-problem-dev/swift-firestore-server.git", .upToNextMajor(from: "1.0.0"))
+    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.0"))
 ]
 
 // Add to target
@@ -63,13 +63,13 @@ dependencies: [
     name: "YourApp",
     dependencies: [
         // Firestore
-        .product(name: "FirestoreServer", package: "swift-firestore-server"),
-        .product(name: "FirestoreSchema", package: "swift-firestore-server"),
+        .product(name: "FirestoreServer", package: "swift-firebase-server"),
+        .product(name: "FirestoreSchema", package: "swift-firebase-server"),
         // Cloud Storage
-        .product(name: "StorageServer", package: "swift-firestore-server"),
-        .product(name: "StorageSchema", package: "swift-firestore-server"),
+        .product(name: "FirebaseStorageServer", package: "swift-firebase-server"),
+        .product(name: "FirebaseStorageSchema", package: "swift-firebase-server"),
         // Firebase Auth
-        .product(name: "AuthServer", package: "swift-firestore-server"),
+        .product(name: "FirebaseAuthServer", package: "swift-firebase-server"),
     ]
 )
 ```
@@ -225,7 +225,7 @@ Cloud Storage REST API client with macro-based type-safe path construction.
 #### 1. Define Schema
 
 ```swift
-import StorageSchema
+import FirebaseStorageSchema
 
 @StorageSchema
 struct AppStorage {
@@ -258,7 +258,7 @@ struct AppStorage {
 #### 2. Initialize Client
 
 ```swift
-import StorageServer
+import FirebaseStorageServer
 
 // Production
 let client = StorageClient(
@@ -361,7 +361,7 @@ Firebase ID token verification client. Verify ID tokens sent from clients and au
 #### 1. Initialize Client
 
 ```swift
-import AuthServer
+import FirebaseAuthServer
 
 // Production
 let authClient = AuthClient(projectId: "your-project-id")
@@ -408,7 +408,7 @@ token.signInProvider   // Sign-in provider ("google.com", "apple.com", etc.)
 
 ```swift
 import Vapor
-import AuthServer
+import FirebaseAuthServer
 
 struct FirebaseAuthMiddleware: AsyncMiddleware {
     let authClient: AuthClient
@@ -477,9 +477,9 @@ MIT License - See [LICENSE](LICENSE) for details
 
 ## Support
 
-- 📚 [API Reference (DocC)](https://no-problem-dev.github.io/swift-firestore-server/documentation/firestoreserver/)
-- 🐛 [Issue Reports](https://github.com/no-problem-dev/swift-firestore-server/issues)
-- 💬 [Discussions](https://github.com/no-problem-dev/swift-firestore-server/discussions)
+- 📚 [API Reference (DocC)](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)
+- 🐛 [Issue Reports](https://github.com/no-problem-dev/swift-firebase-server/issues)
+- 💬 [Discussions](https://github.com/no-problem-dev/swift-firebase-server/discussions)
 
 ---
 

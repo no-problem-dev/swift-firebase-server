@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import AuthServer
+@testable import FirebaseAuthServer
 
 @Suite("JWT Decoder Tests")
 struct JWTDecoderTests {

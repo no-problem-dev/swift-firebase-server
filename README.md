@@ -1,4 +1,4 @@
-# swift-firestore-server
+# swift-firebase-server
 
 サーバーサイドSwift向けFirebase REST APIクライアント（Firestore & Cloud Storage & Auth）
 
@@ -8,7 +8,7 @@
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-📚 **[APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firestore-server/documentation/firestoreserver/)**
+📚 **[APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)**
 
 ## 特徴
 
@@ -55,7 +55,7 @@ let activeUsers = try await schema.users.query(as: User.self)
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/no-problem-dev/swift-firestore-server.git", .upToNextMajor(from: "1.0.0"))
+    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.0"))
 ]
 
 // ターゲットに追加
@@ -63,13 +63,13 @@ dependencies: [
     name: "YourApp",
     dependencies: [
         // Firestore
-        .product(name: "FirestoreServer", package: "swift-firestore-server"),
-        .product(name: "FirestoreSchema", package: "swift-firestore-server"),
+        .product(name: "FirestoreServer", package: "swift-firebase-server"),
+        .product(name: "FirestoreSchema", package: "swift-firebase-server"),
         // Cloud Storage
-        .product(name: "StorageServer", package: "swift-firestore-server"),
-        .product(name: "StorageSchema", package: "swift-firestore-server"),
+        .product(name: "FirebaseStorageServer", package: "swift-firebase-server"),
+        .product(name: "FirebaseStorageSchema", package: "swift-firebase-server"),
         // Firebase Auth
-        .product(name: "AuthServer", package: "swift-firestore-server"),
+        .product(name: "FirebaseAuthServer", package: "swift-firebase-server"),
     ]
 )
 ```
@@ -295,7 +295,7 @@ Cloud Storage REST APIクライアント。マクロベースの型安全なパ�
 #### 1. スキーマの定義
 
 ```swift
-import StorageSchema
+import FirebaseStorageSchema
 
 @StorageSchema
 struct AppStorage {
@@ -328,7 +328,7 @@ struct AppStorage {
 #### 2. クライアントの初期化
 
 ```swift
-import StorageServer
+import FirebaseStorageServer
 
 // 本番環境
 let client = StorageClient(
@@ -431,7 +431,7 @@ Firebase IDトークン検証クライアント。クライアントから送信
 #### 1. クライアントの初期化
 
 ```swift
-import AuthServer
+import FirebaseAuthServer
 
 // 本番環境
 let authClient = AuthClient(projectId: "your-project-id")
@@ -478,7 +478,7 @@ token.signInProvider   // サインインプロバイダー（"google.com", "app
 
 ```swift
 import Vapor
-import AuthServer
+import FirebaseAuthServer
 
 struct FirebaseAuthMiddleware: AsyncMiddleware {
     let authClient: AuthClient
@@ -547,9 +547,9 @@ MIT License - 詳細は [LICENSE](LICENSE) を参照
 
 ## サポート
 
-- 📚 [APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firestore-server/documentation/firestoreserver/)
-- 🐛 [Issue報告](https://github.com/no-problem-dev/swift-firestore-server/issues)
-- 💬 [ディスカッション](https://github.com/no-problem-dev/swift-firestore-server/discussions)
+- 📚 [APIリファレンス（DocC）](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/)
+- 🐛 [Issue報告](https://github.com/no-problem-dev/swift-firebase-server/issues)
+- 💬 [ディスカッション](https://github.com/no-problem-dev/swift-firebase-server/discussions)
 
 ---
 

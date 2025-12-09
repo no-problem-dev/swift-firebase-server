@@ -1,5 +1,5 @@
 import Foundation
-import StorageServer
+import FirebaseStorageServer
 
 // MARK: - Schema Protocol
 

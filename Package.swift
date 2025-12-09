@@ -4,7 +4,7 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "swift-firestore-server",
+    name: "swift-firebase-server",
     platforms: [
         .macOS(.v14),
     ],
@@ -21,18 +21,18 @@ let package = Package(
         ),
         // Cloud Storage client
         .library(
-            name: "StorageServer",
-            targets: ["StorageServer"]
+            name: "FirebaseStorageServer",
+            targets: ["FirebaseStorageServer"]
         ),
         // Storage Schema DSL with macros
         .library(
-            name: "StorageSchema",
-            targets: ["StorageSchema"]
+            name: "FirebaseStorageSchema",
+            targets: ["FirebaseStorageSchema"]
         ),
         // Firebase Auth client (ID token verification)
         .library(
-            name: "AuthServer",
-            targets: ["AuthServer"]
+            name: "FirebaseAuthServer",
+            targets: ["FirebaseAuthServer"]
         ),
     ],
     dependencies: [
@@ -61,7 +61,7 @@ let package = Package(
 
         // Cloud Storage client
         .target(
-            name: "StorageServer",
+            name: "FirebaseStorageServer",
             dependencies: [
                 "Internal",
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
@@ -89,16 +89,16 @@ let package = Package(
 
         // Storage Schema declarations and protocols
         .target(
-            name: "StorageSchema",
+            name: "FirebaseStorageSchema",
             dependencies: [
-                "StorageServer",
-                "StorageMacros",
+                "FirebaseStorageServer",
+                "FirebaseStorageMacros",
             ]
         ),
 
         // Storage Macro implementations (compiler plugin)
         .macro(
-            name: "StorageMacros",
+            name: "FirebaseStorageMacros",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
@@ -108,7 +108,7 @@ let package = Package(
 
         // Firebase Auth client (ID token verification)
         .target(
-            name: "AuthServer",
+            name: "FirebaseAuthServer",
             dependencies: [
                 "Internal",
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
@@ -131,20 +131,20 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "StorageServerTests",
-            dependencies: ["StorageServer"]
+            name: "FirebaseStorageServerTests",
+            dependencies: ["FirebaseStorageServer"]
         ),
         .testTarget(
-            name: "StorageMacrosTests",
+            name: "FirebaseStorageMacrosTests",
             dependencies: [
-                "StorageSchema",
-                "StorageMacros",
+                "FirebaseStorageSchema",
+                "FirebaseStorageMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
         .testTarget(
-            name: "AuthServerTests",
-            dependencies: ["AuthServer"]
+            name: "FirebaseAuthServerTests",
+            dependencies: ["FirebaseAuthServer"]
         ),
     ]
 )

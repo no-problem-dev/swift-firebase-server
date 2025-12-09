@@ -1,7 +1,7 @@
 import SwiftSyntaxMacrosTestSupport
 import Testing
 
-@testable import StorageMacros
+@testable import FirebaseStorageMacros
 
 @Suite("Storage Macros Tests")
 struct StorageMacrosTests {

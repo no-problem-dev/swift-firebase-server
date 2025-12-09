@@ -5,7 +5,30 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [セマンティックバージョニング](https://semver.org/lang/ja/spec/v2.0.0.html) に準拠しています。
 
-## [未リリース]
+## [1.0.3] - 2025-12-09
+
+### 変更
+- **リポジトリ名変更**: `swift-firestore-server` → `swift-firebase-server`
+- **パッケージ名変更**: Firebase関連パッケージに統一的な命名規則を適用
+  - `StorageServer` → `FirebaseStorageServer`
+  - `StorageSchema` → `FirebaseStorageSchema`
+  - `StorageMacros` → `FirebaseStorageMacros`
+  - `AuthServer` → `FirebaseAuthServer`
+- Firestoreパッケージは変更なし（FirestoreServer, FirestoreSchema, FirestoreMacros）
+
+### 移行ガイド
+パッケージのインポート文を更新してください：
+```swift
+// Before
+import StorageServer
+import StorageSchema
+import AuthServer
+
+// After
+import FirebaseStorageServer
+import FirebaseStorageSchema
+import FirebaseAuthServer
+```
 
 ## [1.0.2] - 2025-12-09
 
@@ -95,8 +118,11 @@
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[1.0.2]: https://github.com/no-problem-dev/swift-firestore-server/compare/v1.0.1...v1.0.2
-[1.0.1]: https://github.com/no-problem-dev/swift-firestore-server/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/no-problem-dev/swift-firestore-server/releases/tag/v1.0.0
+[1.0.3]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/no-problem-dev/swift-firebase-server/releases/tag/v1.0.0
 
 <!-- Auto-generated on 2025-12-09T11:13:37Z by release workflow -->
+
+<!-- Auto-generated on 2025-12-09T12:06:18Z by release workflow -->
