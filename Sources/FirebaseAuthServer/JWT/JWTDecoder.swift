@@ -12,7 +12,9 @@ struct JWTDecoder: Sendable {
     /// - Returns: デコード結果（ヘッダー、ペイロード、署名、署名対象データ）
     /// - Throws: `AuthError.tokenInvalid` デコードに失敗した場合
     func decode(_ token: String) throws -> DecodedJWT {
-        let parts = token.split(separator: ".")
+        // omittingEmptySubsequences: false で空のシグネチャ部分も保持
+        // Firebase エミュレーターは署名なしのトークン（header.payload.）を返すため
+        let parts = token.split(separator: ".", omittingEmptySubsequences: false)
 
         guard parts.count == 3 else {
             throw AuthError.tokenInvalid(
@@ -42,8 +44,13 @@ struct JWTDecoder: Sendable {
             throw AuthError.tokenInvalid(reason: "Failed to parse JWT payload: \(error)")
         }
 
-        // 署名のデコード
-        let signature = try decodeBase64URL(signaturePart, component: "signature")
+        // 署名のデコード（エミュレーターモードでは空の場合がある）
+        let signature: Data
+        if signaturePart.isEmpty {
+            signature = Data()
+        } else {
+            signature = try decodeBase64URL(signaturePart, component: "signature")
+        }
 
         // 署名対象データ（header.payload）
         let signedData = Data("\(headerPart).\(payloadPart)".utf8)

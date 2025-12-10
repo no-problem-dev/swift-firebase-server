@@ -148,5 +148,9 @@ let package = Package(
             name: "FirebaseAuthServerTests",
             dependencies: ["FirebaseAuthServer"]
         ),
+        .testTarget(
+            name: "InternalTests",
+            dependencies: ["Internal"]
+        ),
     ]
 )
