@@ -123,8 +123,13 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
 
     /// RS256 署名を検証
     private func verifySignature(_ decoded: DecodedJWT) async throws {
+        // kid が必須（本番モードでのみ呼ばれる）
+        guard let kid = decoded.header.kid else {
+            throw AuthError.tokenInvalid(reason: "Missing 'kid' in JWT header")
+        }
+
         // 公開鍵を取得
-        let pemCertificate = try await publicKeyCache.getPublicKey(for: decoded.header.kid)
+        let pemCertificate = try await publicKeyCache.getPublicKey(for: kid)
 
         // PEM から公開鍵を抽出
         let publicKey = try extractPublicKey(from: pemCertificate)

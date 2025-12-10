@@ -5,6 +5,7 @@ import Foundation
 /// 環境に応じて自動的に認証方法を切り替える:
 /// - Cloud Run: メタデータサーバーからトークン取得
 /// - ローカル: gcloud CLI 経由でトークン取得
+/// - エミュレーター: 認証をスキップ（ダミートークンを返す）
 ///
 /// トークンはキャッシュされ、有効期限が近づくと自動的にリフレッシュされる。
 ///
@@ -27,6 +28,7 @@ public actor AccessTokenProvider {
     private enum Environment {
         case cloudRun
         case local
+        case emulator
     }
 
     private init() {
@@ -75,11 +77,23 @@ public actor AccessTokenProvider {
             let token = try await client.fetchToken()
             // gcloud CLI はexpiresInを返さないので、デフォルト値を設定（55分）
             return (token, 3300)
+        case .emulator:
+            // エミュレーターモードでは認証不要
+            // Firestore エミュレーターは任意のトークンを受け入れる
+            return ("owner", 3600)
         }
     }
 
     /// 実行環境を検出
     private static func detectEnvironment() -> Environment {
+        // エミュレーターモードの検出
+        // USE_FIREBASE_EMULATOR=true または FIRESTORE_EMULATOR_HOST が設定されている場合
+        if ProcessInfo.processInfo.environment["USE_FIREBASE_EMULATOR"] == "true"
+            || ProcessInfo.processInfo.environment["FIRESTORE_EMULATOR_HOST"] != nil
+        {
+            return .emulator
+        }
+
         // K_SERVICE は Cloud Run が自動設定する環境変数
         // K_REVISION も Cloud Run 固有
         if ProcessInfo.processInfo.environment["K_SERVICE"] != nil
