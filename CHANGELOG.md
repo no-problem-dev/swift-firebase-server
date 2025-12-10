@@ -9,6 +9,36 @@
 
 なし
 
+## [1.0.6] - 2025-12-11
+
+### 追加
+- **GCP 自動認証機能** - サービスアカウント認証の自動管理
+  - `AccessTokenProvider` - 環境に応じた認証トークン自動取得
+    - Cloud Run: メタデータサーバーから取得
+    - ローカル: gcloud CLI 経由で取得
+    - エミュレーター: ダミートークンを返す（認証スキップ）
+  - `AutoAuthOperations` - 認証トークンを自動取得する Firestore 操作メソッド群
+  - `TokenCache` - トークンキャッシュと自動リフレッシュ
+  - `MetadataServerClient` - Cloud Run メタデータサーバークライアント
+  - `LocalAuthClient` - gcloud CLI 経由のローカル認証クライアント
+  - `GCPAuthError` - GCP 認証関連エラー型
+
+- **Firebase Emulator サポート強化**
+  - `USE_FIREBASE_EMULATOR=true` または `FIRESTORE_EMULATOR_HOST` 環境変数で自動検出
+  - エミュレーターモードでは認証をスキップ（ダミートークン使用）
+  - JWT ヘッダーの `kid` フィールドをオプショナル化（エミュレーターは kid なし）
+  - 空の署名部分をサポート（エミュレータートークンは署名なし）
+
+### 変更
+- **JWTDecoder** - `omittingEmptySubsequences: false` で空の署名部分を保持
+- **JWTHeader** - `kid` フィールドをオプショナルに変更
+- **IDTokenVerifier** - 本番モードでの `kid` 必須チェックを追加
+
+### 対象モジュール
+- FirestoreServer（AutoAuthOperations）
+- FirebaseAuthServer（JWT関連）
+- Internal（GCPAuth）
+
 ## [1.0.5] - 2025-12-10
 
 ### 修正
@@ -159,6 +189,7 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.6]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.2...v1.0.3
