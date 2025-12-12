@@ -76,15 +76,15 @@ dependencies: [
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](docs/getting-started.md) | Setup and quick start |
-| [Firestore Document Operations](docs/firestore/document-operations.md) | CRUD operations |
-| [Firestore Queries](docs/firestore/queries.md) | Conditional search |
-| [Firestore FilterBuilder DSL](docs/firestore/filter-builder-dsl.md) | Declarative filter syntax |
-| [Firestore Schema Definition](docs/firestore/schema-definition.md) | @FirestoreSchema macro |
-| [Firestore Model Definition](docs/firestore/model-definition.md) | @FirestoreModel macro |
-| [Storage File Operations](docs/storage/file-operations.md) | Upload & download |
-| [Storage Schema Definition](docs/storage/schema-definition.md) | @StorageSchema macro |
-| [Auth Token Verification](docs/auth/token-verification.md) | ID token verification |
+| [Getting Started](documentation/getting-started.md) | Setup and quick start |
+| [Firestore Document Operations](documentation/firestore/document-operations.md) | CRUD operations |
+| [Firestore Queries](documentation/firestore/queries.md) | Conditional search |
+| [Firestore FilterBuilder DSL](documentation/firestore/filter-builder-dsl.md) | Declarative filter syntax |
+| [Firestore Schema Definition](documentation/firestore/schema-definition.md) | @FirestoreSchema macro |
+| [Firestore Model Definition](documentation/firestore/model-definition.md) | @FirestoreModel macro |
+| [Storage File Operations](documentation/storage/file-operations.md) | Upload & download |
+| [Storage Schema Definition](documentation/storage/schema-definition.md) | @StorageSchema macro |
+| [Auth Token Verification](documentation/auth/token-verification.md) | ID token verification |
 
 ### 📚 API Reference (DocC)
 
@@ -96,7 +96,7 @@ dependencies: [
 
 ### 🔧 Technical Reference
 
-- [Swift Macro Reference](docs/references/macros/README.md) - Comprehensive macro reference
+- [Swift Macro Reference](documentation/references/macros/README.md) - Comprehensive macro reference
 
 ## Requirements
 

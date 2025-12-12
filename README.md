@@ -76,15 +76,15 @@ dependencies: [
 
 | ガイド | 説明 |
 |--------|------|
-| [はじめに](docs/getting-started.md) | 環境構築とクイックスタート |
-| [Firestore ドキュメント操作](docs/firestore/document-operations.md) | CRUD操作 |
-| [Firestore クエリ](docs/firestore/queries.md) | 条件付き検索 |
-| [Firestore FilterBuilder DSL](docs/firestore/filter-builder-dsl.md) | 宣言的フィルター構文 |
-| [Firestore スキーマ定義](docs/firestore/schema-definition.md) | @FirestoreSchema マクロ |
-| [Firestore モデル定義](docs/firestore/model-definition.md) | @FirestoreModel マクロ |
-| [Storage ファイル操作](docs/storage/file-operations.md) | アップロード・ダウンロード |
-| [Storage スキーマ定義](docs/storage/schema-definition.md) | @StorageSchema マクロ |
-| [Auth トークン検証](docs/auth/token-verification.md) | IDトークン検証 |
+| [はじめに](documentation/getting-started.md) | 環境構築とクイックスタート |
+| [Firestore ドキュメント操作](documentation/firestore/document-operations.md) | CRUD操作 |
+| [Firestore クエリ](documentation/firestore/queries.md) | 条件付き検索 |
+| [Firestore FilterBuilder DSL](documentation/firestore/filter-builder-dsl.md) | 宣言的フィルター構文 |
+| [Firestore スキーマ定義](documentation/firestore/schema-definition.md) | @FirestoreSchema マクロ |
+| [Firestore モデル定義](documentation/firestore/model-definition.md) | @FirestoreModel マクロ |
+| [Storage ファイル操作](documentation/storage/file-operations.md) | アップロード・ダウンロード |
+| [Storage スキーマ定義](documentation/storage/schema-definition.md) | @StorageSchema マクロ |
+| [Auth トークン検証](documentation/auth/token-verification.md) | IDトークン検証 |
 
 ### 📚 APIリファレンス（DocC）
 
@@ -96,7 +96,7 @@ dependencies: [
 
 ### 🔧 技術リファレンス
 
-- [Swift Macro リファレンス](docs/references/macros/README.md) - マクロの包括的なリファレンス
+- [Swift Macro リファレンス](documentation/references/macros/README.md) - マクロの包括的なリファレンス
 
 ## 要件
 
