@@ -100,3 +100,6 @@ docs/
 
 # SwiftPM
 .swiftpm/
+
+# Claude Code
+.claude/
