@@ -147,38 +147,37 @@ public macro FieldIgnore() = #externalMacro(module: "FirestoreMacros", type: "Fi
 
 /// Firestoreスキーマを定義するマクロ
 ///
-/// enumに適用し、ネストされた`@Collection` enumからパスアクセサを自動生成します。
+/// structに適用し、型安全なFirestoreアクセスを自動生成します。
+/// `client`、`database`プロパティと`init(client:)`イニシャライザが生成され、
+/// 各`@Collection`に対応する型付きコレクションプロパティも追加されます。
 ///
 /// ```swift
 /// @FirestoreSchema
-/// enum Schema {
-///     @Collection("users")
-///     enum users {
-///         @SubCollection("books")
-///         enum books
-///     }
+/// struct Schema {
+///     @Collection("users", model: User.self)
+///     enum Users {}
 ///
-///     @Collection("genres")
-///     enum genres
+///     @Collection("genres", model: Genre.self)
+///     enum Genres {}
 /// }
 ///
 /// // 使用例
-/// Schema.users.collectionPath                    // "users"
-/// Schema.users.documentPath("userId")            // "users/userId"
-/// Schema.users.books.collectionPath("userId")    // "users/userId/books"
-/// Schema.users.books.documentPath("userId", "bookId") // "users/userId/books/bookId"
+/// let schema = Schema(client: firestoreClient)
+/// let user = try await schema.users.document("user123").get()  // User型が推論される
+/// let genres = try await schema.genres.getAll()  // [Genre]型が推論される
 /// ```
-@attached(member, names: arbitrary)
+@attached(member, names: named(client), named(database), named(init), arbitrary)
+@attached(extension, conformances: FirestoreSchemaProtocol)
 public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type: "FirestoreSchemaMacro")
 
 /// Firestoreコレクションを定義するマクロ
 ///
-/// `@FirestoreSchema` enum内のenumに適用し、コレクションパスとモデル型を自動生成します。
+/// `@FirestoreSchema` struct内のenumに適用し、コレクションパスとモデル型を自動生成します。
 /// ネストされている場合は自動的にサブコレクションとして扱われます。
 ///
 /// ```swift
 /// @FirestoreSchema
-/// enum Schema {
+/// struct Schema {
 ///     @Collection("users", model: User.self)
 ///     enum Users {
 ///         @Collection("books", model: Book.self)
@@ -189,12 +188,16 @@ public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type:
 ///     }
 /// }
 ///
-/// // 使用例
+/// // 静的パス生成
 /// Schema.Users.collectionPath                              // "users"
 /// Schema.Users.documentPath("userId")                      // "users/userId"
 /// Schema.Users.Model.self                                  // User.Type
 /// Schema.Users.Books.collectionPath("userId")              // "users/userId/books"
 /// Schema.Users.Books.Model.self                            // Book.Type
+///
+/// // インスタンス経由のアクセス
+/// let schema = Schema(client: client)
+/// let user = try await schema.users.document("userId").get()  // User型が推論される
 /// ```
 ///
 /// - Parameter collectionId: Firestoreのコレクション名

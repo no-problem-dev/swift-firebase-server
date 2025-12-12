@@ -8,7 +8,7 @@
 import FirestoreSchema
 
 @FirestoreSchema
-enum Schema {
+struct Schema {
     @Collection("users", model: User.self)
     enum Users {}
 
@@ -41,7 +41,7 @@ Schema.Users.Model.self             // User.Type
 
 ```swift
 @FirestoreSchema
-enum Schema {
+struct Schema {
     @Collection("users", model: User.self)
     enum Users {
         @Collection("posts", model: Post.self)
@@ -97,23 +97,38 @@ enum Items {}
 
 この制約により、スキーマで使用される全ての型がFirestoreモデルとして正しく定義されていることが保証されます。
 
-## パスの使用例
+## スキーマの使用例
 
 ```swift
-// Cloud Run / ローカル gcloud 自動検出
+// クライアントとスキーマを初期化
 let client = try await FirestoreClient(.auto)
+let schema = Schema(client: client)
 
-// ドキュメント参照を作成
-let userRef = client.document(Schema.Users.documentPath("user123"))
+// ドキュメント取得（型推論が効く）
+let user = try await schema.users.document("user123").get()
 
-// ドキュメント取得
-let user: User = try await client.getDocument(userRef, as: User.self)
+// ドキュメント作成
+try await schema.users.document("user123").create(data: newUser)
 
-// サブコレクションのクエリ
-let postsRef = client.collection(Schema.Users.Posts.collectionPath("user123"))
-let posts: [Post] = try await client.runQuery(
-    postsRef.query(as: Post.self).limit(10)
+// サブコレクションの操作
+let post = try await schema.users.document("user123").posts.document("post456").get()
+
+// クエリ実行
+let recentPosts = try await schema.users.document("user123").posts.execute(
+    schema.users.document("user123").posts.query()
+        .order(by: "createdAt", direction: .descending)
+        .limit(to: 10)
 )
+```
+
+## 静的パスの使用
+
+スキーマからは静的なパス文字列も取得できます：
+
+```swift
+Schema.Users.collectionId           // "users"
+Schema.Users.collectionPath         // "users"
+Schema.Users.documentPath("user1")  // "users/user1"
 ```
 
 ## 関連ドキュメント

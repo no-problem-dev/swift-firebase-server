@@ -22,11 +22,24 @@ final class FirestoreMacrosTests: XCTestCase {
         assertMacroExpansion(
             """
             @FirestoreSchema
-            enum Schema {
+            struct Schema {
             }
             """,
             expandedSource: """
-            enum Schema {
+            struct Schema {
+
+                public let client: FirestoreClient
+
+                public var database: DatabasePath {
+                    client.database
+                }
+
+                public init(client: FirestoreClient) {
+                    self.client = client
+                }
+            }
+
+            extension Schema: FirestoreSchemaProtocol {
             }
             """,
             macros: testMacros
@@ -107,7 +120,7 @@ final class FirestoreMacrosTests: XCTestCase {
         assertMacroExpansion(
             """
             @FirestoreSchema
-            enum Schema {
+            struct Schema {
                 @Collection("users", model: User.self)
                 enum Users {
                 }
@@ -118,7 +131,7 @@ final class FirestoreMacrosTests: XCTestCase {
             }
             """,
             expandedSource: """
-            enum Schema {
+            struct Schema {
                 enum Users {
 
                     public static let collectionId: String = "users"
@@ -147,6 +160,27 @@ final class FirestoreMacrosTests: XCTestCase {
                         collectionPath + "/" + documentId
                     }
                 }
+
+                public let client: FirestoreClient
+
+                public var database: DatabasePath {
+                    client.database
+                }
+
+                public init(client: FirestoreClient) {
+                    self.client = client
+                }
+
+                public var users: FirestoreCollection<User> {
+                    FirestoreCollection(collectionId: Users.collectionId, database: database, client: client)
+                }
+
+                public var genres: FirestoreCollection<Genre> {
+                    FirestoreCollection(collectionId: Genres.collectionId, database: database, client: client)
+                }
+            }
+
+            extension Schema: FirestoreSchemaProtocol {
             }
             """,
             macros: testMacros
@@ -157,6 +191,32 @@ final class FirestoreMacrosTests: XCTestCase {
     }
 
     // MARK: - Error Tests
+
+    func testFirestoreSchemaMustBeStruct() throws {
+        #if canImport(FirestoreMacros)
+        assertMacroExpansion(
+            """
+            @FirestoreSchema
+            enum Schema {
+            }
+            """,
+            expandedSource: """
+            enum Schema {
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@FirestoreSchema can only be applied to structs",
+                    line: 1,
+                    column: 1
+                )
+            ],
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 
     func testCollectionMacroMissingModelError() throws {
         #if canImport(FirestoreMacros)

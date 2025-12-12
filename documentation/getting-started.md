@@ -35,17 +35,22 @@ struct User {
 
 // 2. スキーマを定義
 @FirestoreSchema
-enum Schema {
+struct Schema {
     @Collection("users", model: User.self)
     enum Users {}
 }
 
-// 3. クライアントを初期化
+// 3. クライアントとスキーマを初期化
 let client = try await FirestoreClient(.auto)
+let schema = Schema(client: client)
 
-// 4. ドキュメントを操作
-let docRef = client.document(Schema.Users.documentPath("user123"))
-let user: User = try await client.getDocument(docRef, as: User.self)
+// 4. ドキュメントを操作（型推論が効く）
+let user = try await schema.users.document("user123").get()
+
+// 作成・更新・削除
+try await schema.users.document("user123").create(data: newUser)
+try await schema.users.document("user123").update(data: updatedUser)
+try await schema.users.document("user123").delete()
 ```
 
 ## 環境別の初期化

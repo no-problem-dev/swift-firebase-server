@@ -37,7 +37,7 @@ struct User {
 }
 
 @FirestoreSchema
-enum Schema {
+struct Schema {
     @Collection("users", model: User.self)
     enum Users {
         @Collection("posts", model: Post.self)
@@ -47,12 +47,18 @@ enum Schema {
 
 // Cloud Run / local gcloud auto-detection
 let client = try await FirestoreClient(.auto)
+let schema = Schema(client: client)
 
-// For emulator
-// let client = FirestoreClient(.emulator(projectId: "demo-project"))
+// Get document (type inference works)
+let user = try await schema.users.document("user123").get()
 
-let userRef = try client.document(Schema.Users.documentPath("user123"))
-let user: User = try await client.getDocument(userRef, as: User.self)
+// Create document
+try await schema.users.document("user123").create(data: newUser)
+
+// Execute query
+let activeUsers = try await schema.users.execute(
+    schema.users.query().filter { Field("status") == "active" }
+)
 ```
 
 ## Installation
