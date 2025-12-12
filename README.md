@@ -10,13 +10,10 @@
 
 ## 特徴
 
-- **Vapor非依存** - AsyncHTTPClientベースで軽量
-- **マクロベースDSL** - `@FirestoreSchema`、`@Collection`で型安全なアクセス
-- **Cloud Storage対応** - `@StorageSchema`、`@Folder`、`@Object`でファイルパスを型安全に構築
-- **Firebase Auth対応** - IDトークン検証でサーバーサイド認証
-- **REST API完全対応** - Firebase Admin SDK不要
-- **Swift Concurrency** - async/awaitによる非同期API
-- **型安全なクエリ** - FilterBuilder DSLで宣言的なフィルター構築
+- **Swift Macro DSL** - `@FirestoreSchema`、`@Collection`、`@FirestoreModel` で型安全なスキーマとモデルを定義
+- **CodingKeys 自動生成** - `@FirestoreModel` で `snakeCase` 変換や `@Field` カスタムキーに対応
+- **REST API ネイティブ** - Firebase Admin SDK 不要、サーバーサイド Swift から直接アクセス
+- **FilterBuilder DSL** - Result Builder による宣言的なクエリ構文
 
 ## クイックスタート
 
@@ -24,37 +21,33 @@
 import FirestoreServer
 import FirestoreSchema
 
-// スキーマ定義
+// モデル定義（CodingKeys自動生成）
+@FirestoreModel(keyStrategy: .snakeCase)
+struct User {
+    let id: String
+    let displayName: String  // → display_name
+    let email: String
+}
+
+// スキーマ定義（enumで型安全なパス構築）
 @FirestoreSchema
-struct AppSchema {
+enum Schema {
     @Collection("users", model: User.self)
-    struct Users {
+    enum Users {
         @Collection("posts", model: Post.self)
-        struct Posts {}
+        enum Posts {}
     }
 }
 
-// クライアント初期化
+// パス生成
+Schema.Users.collectionPath                    // "users"
+Schema.Users.documentPath("user123")           // "users/user123"
+Schema.Users.Posts.collectionPath("user123")   // "users/user123/posts"
+
+// クライアント操作
 let client = FirestoreClient(projectId: "my-project")
-
-// ドキュメント取得
-let userRef = try client.document("users/user123")
+let userRef = try client.document(Schema.Users.documentPath("user123"))
 let user: User = try await client.getDocument(userRef, as: User.self, authorization: idToken)
-
-// クエリ実行
-let usersRef = client.collection("users")
-let activeUsers: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter {
-            And {
-                Field("status") == "active"
-                Field("age") >= 18
-            }
-        }
-        .order(by: "createdAt", direction: .descending)
-        .limit(to: 20),
-    authorization: idToken
-)
 ```
 
 ## インストール

@@ -10,13 +10,10 @@ Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth
 
 ## Features
 
-- **Vapor Independent** - Lightweight, based on AsyncHTTPClient
-- **Macro-based DSL** - Type-safe access with `@FirestoreSchema`, `@Collection`
-- **Cloud Storage Support** - Type-safe file paths with `@StorageSchema`, `@Folder`, `@Object`
-- **Firebase Auth Support** - ID token verification for server-side authentication
-- **Full REST API Support** - Direct access without Firebase Admin SDK
-- **Swift Concurrency** - Async/await API
-- **Type-safe Queries** - Declarative filter construction with FilterBuilder DSL
+- **Swift Macro DSL** - Type-safe schema and model definitions with `@FirestoreSchema`, `@Collection`, `@FirestoreModel`
+- **Auto-generated CodingKeys** - `@FirestoreModel` supports `snakeCase` conversion and `@Field` custom keys
+- **Native REST API** - Direct access from server-side Swift without Firebase Admin SDK
+- **FilterBuilder DSL** - Declarative query syntax with Result Builders
 
 ## Quick Start
 
@@ -24,37 +21,33 @@ Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth
 import FirestoreServer
 import FirestoreSchema
 
-// Schema definition
+// Model definition (auto-generated CodingKeys)
+@FirestoreModel(keyStrategy: .snakeCase)
+struct User {
+    let id: String
+    let displayName: String  // → display_name
+    let email: String
+}
+
+// Schema definition (type-safe path construction with enum)
 @FirestoreSchema
-struct AppSchema {
+enum Schema {
     @Collection("users", model: User.self)
-    struct Users {
+    enum Users {
         @Collection("posts", model: Post.self)
-        struct Posts {}
+        enum Posts {}
     }
 }
 
-// Initialize client
+// Path generation
+Schema.Users.collectionPath                    // "users"
+Schema.Users.documentPath("user123")           // "users/user123"
+Schema.Users.Posts.collectionPath("user123")   // "users/user123/posts"
+
+// Client operations
 let client = FirestoreClient(projectId: "my-project")
-
-// Get document
-let userRef = try client.document("users/user123")
+let userRef = try client.document(Schema.Users.documentPath("user123"))
 let user: User = try await client.getDocument(userRef, as: User.self, authorization: idToken)
-
-// Run query
-let usersRef = client.collection("users")
-let activeUsers: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter {
-            And {
-                Field("status") == "active"
-                Field("age") >= 18
-            }
-        }
-        .order(by: "createdAt", direction: .descending)
-        .limit(to: 20),
-    authorization: idToken
-)
 ```
 
 ## Installation
