@@ -37,7 +37,7 @@ struct User {
 }
 
 @FirestoreSchema
-enum Schema {
+struct Schema {
     @Collection("users", model: User.self)
     enum Users {
         @Collection("posts", model: Post.self)
@@ -45,9 +45,20 @@ enum Schema {
     }
 }
 
-let client = FirestoreClient(projectId: "my-project")
-let userRef = try client.document(Schema.Users.documentPath("user123"))
-let user: User = try await client.getDocument(userRef, as: User.self)
+// Cloud Run / ローカル gcloud 自動検出
+let client = try await FirestoreClient(.auto)
+let schema = Schema(client: client)
+
+// ドキュメント取得（型推論が効く）
+let user = try await schema.users.document("user123").get()
+
+// ドキュメント作成
+try await schema.users.document("user123").create(data: newUser)
+
+// クエリ実行
+let activeUsers = try await schema.users.execute(
+    schema.users.query().filter { Field("status") == "active" }
+)
 ```
 
 ## インストール

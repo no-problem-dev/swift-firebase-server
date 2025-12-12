@@ -139,20 +139,19 @@ func getProfile(req: Request) async throws -> UserProfile {
 }
 ```
 
-## HTTPClientの共有
+## 複数サービスの併用
 
-複数のFirebaseサービスでHTTPClientを共有する場合：
+Firestore/Storageと併用する場合：
 
 ```swift
-let httpProvider = HTTPClientProvider()
+// 自動検出モードで初期化
+let firestoreClient = try await FirestoreClient(.auto)
+let storageClient = try await StorageClient(.auto, bucket: "my-bucket.appspot.com")
 
-let authClient = AuthClient(
-    configuration: AuthConfiguration(projectId: "my-project"),
-    httpClientProvider: httpProvider
-)
+// AuthClientは従来通り
+let authClient = AuthClient(projectId: "my-project")
 
-let firestoreClient = FirestoreClient(
-    configuration: FirestoreConfiguration(projectId: "my-project"),
-    httpClientProvider: httpProvider
-)
+// IDトークン検証後、Firestore/Storageを操作
+let token = try await authClient.verifyIDToken(idToken)
+let user: User = try await firestoreClient.getDocument(userRef, as: User.self)
 ```

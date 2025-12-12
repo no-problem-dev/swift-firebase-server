@@ -7,18 +7,14 @@ StorageClientを使用したファイルのアップロード・ダウンロー�
 ```swift
 import FirebaseStorageServer
 
-// 本番環境
-let client = StorageClient(
-    projectId: "your-project-id",
-    bucket: "your-bucket.appspot.com"
-)
+// Cloud Run / ローカル gcloud（自動検出）
+let client = try await StorageClient(.auto, bucket: "your-bucket.appspot.com")
 
 // エミュレーター
-let config = StorageConfiguration.emulator(
-    projectId: "your-project-id",
-    bucket: "your-bucket.appspot.com"
-)
-let client = StorageClient(configuration: config)
+let client = StorageClient(.emulator(projectId: "demo-project"), bucket: "your-bucket")
+
+// 明示指定
+let client = StorageClient(.explicit(projectId: "my-project", token: accessToken), bucket: "your-bucket")
 ```
 
 ## スキーマを使用した操作（推奨）
@@ -31,29 +27,26 @@ let client = StorageClient(configuration: config)
 let storage = AppStorage(client: client)
 let avatarPath = storage.users.avatar("user123", .jpg)
 
-let object = try await avatarPath.upload(
-    data: imageData,
-    authorization: idToken
-)
+let object = try await avatarPath.upload(data: imageData)
 print("Uploaded: \(object.name)")
 ```
 
 ### ダウンロード
 
 ```swift
-let data = try await avatarPath.download(authorization: idToken)
+let data = try await avatarPath.download()
 ```
 
 ### 削除
 
 ```swift
-try await avatarPath.delete(authorization: idToken)
+try await avatarPath.delete()
 ```
 
 ### メタデータ取得
 
 ```swift
-let metadata = try await avatarPath.getMetadata(authorization: idToken)
+let metadata = try await avatarPath.getMetadata()
 print("Size: \(metadata.size) bytes")
 print("Content-Type: \(metadata.contentType)")
 ```
@@ -75,36 +68,26 @@ let url = avatarPath.publicURL
 let object = try await client.upload(
     data: imageData,
     path: "images/photo.jpg",
-    contentType: "image/jpeg",
-    authorization: idToken
+    contentType: "image/jpeg"
 )
 ```
 
 ### ダウンロード
 
 ```swift
-let data = try await client.download(
-    path: "images/photo.jpg",
-    authorization: idToken
-)
+let data = try await client.download(path: "images/photo.jpg")
 ```
 
 ### 削除
 
 ```swift
-try await client.delete(
-    path: "images/photo.jpg",
-    authorization: idToken
-)
+try await client.delete(path: "images/photo.jpg")
 ```
 
 ### 複数ファイルの削除
 
 ```swift
-let failures = try await client.deleteMultiple(
-    paths: ["images/1.jpg", "images/2.jpg", "images/3.jpg"],
-    authorization: idToken
-)
+let failures = await client.deleteMultiple(paths: ["images/1.jpg", "images/2.jpg", "images/3.jpg"])
 
 for (path, error) in failures {
     print("Failed to delete \(path): \(error)")
@@ -115,21 +98,24 @@ for (path, error) in failures {
 
 ```swift
 do {
-    let data = try await client.download(path: path, authorization: token)
+    let data = try await client.download(path: path)
 } catch let error as StorageError {
     switch error {
-    case .api(let apiError):
-        // APIエラー（notFound, permissionDenied, unauthenticated等）
-        print(apiError)
-    case .fileTooLarge(let size, let maxSize):
-        // ファイルサイズ超過
-        print("Size: \(size), Max: \(maxSize)")
-    case .invalidContentType(let contentType):
-        // 無効なコンテンツタイプ
-        print(contentType)
-    case .invalidPath(let path):
-        // 無効なパス
-        print(path)
+    case .notFound:
+        // ファイルが見つからない
+        print("File not found")
+    case .permissionDenied:
+        // 権限がない
+        print("Permission denied")
+    case .unauthenticated:
+        // 認証エラー
+        print("Unauthenticated")
+    case .invalidArgument(let message):
+        // 無効な引数
+        print(message)
+    case .unknown(let statusCode, let message):
+        // その他のエラー
+        print("Error \(statusCode): \(message)")
     }
 }
 ```

@@ -1,14 +1,13 @@
 # クエリ
 
-Firestoreのクエリ機能です。FilterBuilder DSLによる宣言的な構文を使用します。
+スキーマベースのクエリ機能です。FilterBuilder DSLによる宣言的な構文を使用します。
 
 ## 基本
 
 ```swift
-let usersRef = client.collection("users")
-
-let activeUsers: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
+// スキーマからクエリを実行
+let activeUsers = try await schema.users.execute(
+    schema.users.query()
         .filter { Field("status") == "active" }
 )
 ```
@@ -36,38 +35,47 @@ let activeUsers: [User] = try await client.runQuery(
 
 ```swift
 // AND条件
-.filter {
-    And {
-        Field("status") == "active"
-        Field("age") >= 18
-    }
-}
+let results = try await schema.users.execute(
+    schema.users.query()
+        .filter {
+            And {
+                Field("status") == "active"
+                Field("age") >= 18
+            }
+        }
+)
 
 // OR条件
-.filter {
-    Or {
-        Field("role") == "admin"
-        Field("role") == "moderator"
-    }
-}
+let admins = try await schema.users.execute(
+    schema.users.query()
+        .filter {
+            Or {
+                Field("role") == "admin"
+                Field("role") == "moderator"
+            }
+        }
+)
 
 // ネスト
-.filter {
-    And {
-        Field("active") == true
-        Or {
-            Field("category") == "electronics"
-            Field("featured") == true
+let featured = try await schema.products.execute(
+    schema.products.query()
+        .filter {
+            And {
+                Field("active") == true
+                Or {
+                    Field("category") == "electronics"
+                    Field("featured") == true
+                }
+            }
         }
-    }
-}
+)
 ```
 
 ## ソート・件数制限
 
 ```swift
-let results: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
+let results = try await schema.users.execute(
+    schema.users.query()
         .filter { Field("status") == "active" }
         .order(by: "createdAt", direction: .descending)
         .limit(to: 20)
@@ -85,12 +93,19 @@ let results: [User] = try await client.runQuery(
 
 ```swift
 // オフセットベース
-.offset(20).limit(to: 20)
+let page2 = try await schema.users.execute(
+    schema.users.query()
+        .offset(20)
+        .limit(to: 20)
+)
 
 // カーソルベース
-.order(by: "createdAt")
-.start(after: .timestamp(lastCreatedAt))
-.limit(to: 20)
+let nextPage = try await schema.users.execute(
+    schema.users.query()
+        .order(by: "createdAt")
+        .start(after: .timestamp(lastCreatedAt))
+        .limit(to: 20)
+)
 ```
 
 ## 動的フィルター
@@ -99,8 +114,8 @@ Swift の制御構文が使えます。
 
 ```swift
 func search(verified: Bool?, minAge: Int?) async throws -> [User] {
-    try await client.runQuery(
-        usersRef.query(as: User.self)
+    try await schema.users.execute(
+        schema.users.query()
             .filter {
                 And {
                     Field("status") == "active"
@@ -112,18 +127,18 @@ func search(verified: Bool?, minAge: Int?) async throws -> [User] {
 }
 ```
 
-## コレクショングループ
-
-サブコレクションを横断してクエリします。
+## サブコレクションのクエリ
 
 ```swift
-let allPosts: [Post] = try await client.runQuery(
-    client.collection("posts").query(as: Post.self)
-        .collectionGroup()
+// 特定ユーザーの投稿を取得
+let userPosts = try await schema.users.document("user123").posts.execute(
+    schema.users.document("user123").posts.query()
         .filter { Field("published") == true }
+        .order(by: "createdAt", direction: .descending)
 )
 ```
 
 ## 関連ドキュメント
 
 - [ドキュメント操作](document-operations.md) - CRUD操作
+- [スキーマ定義](schema-definition.md) - `@FirestoreSchema` マクロの詳細

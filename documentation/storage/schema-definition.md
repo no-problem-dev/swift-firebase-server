@@ -20,7 +20,8 @@ struct AppStorage {
 ## スキーマの使用
 
 ```swift
-let storage = StorageClient(projectId: "my-project", bucket: "my-bucket.appspot.com")
+// Cloud Run / ローカル gcloud 自動検出
+let storage = try await StorageClient(.auto, bucket: "my-bucket.appspot.com")
 let schema = AppStorage(client: storage)
 
 // パスの生成
@@ -141,7 +142,7 @@ struct AppStorage {
 }
 
 // 使用
-let client = StorageClient(projectId: "my-project", bucket: "my-bucket.appspot.com")
+let client = try await StorageClient(.auto, bucket: "my-bucket.appspot.com")
 let storage = AppStorage(client: client)
 
 // アバター画像のパス

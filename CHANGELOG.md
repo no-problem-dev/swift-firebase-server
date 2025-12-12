@@ -9,6 +9,39 @@
 
 なし
 
+## [1.0.8] - 2025-12-13
+
+### 追加
+- **GCPConfiguration enum** - 排他的な認証設定API
+  - `.auto` - Cloud Run / ローカル gcloud 自動検出（async）
+  - `.autoWithDatabase(databaseId:)` - カスタムデータベースID対応
+  - `.emulator(projectId:)` - エミュレーター用（sync、token自動設定）
+  - `.explicit(projectId:token:)` - 明示的なprojectId/token指定（sync）
+- **GCPEnvironment actor** - 環境検出とcredentials取得のシングルトン
+- **MetadataServerClient.fetchProjectId()** - Cloud RunでprojectId自動取得
+- **LocalAuthClient.fetchProjectId()** - gcloud CLIでprojectId自動取得
+- **FirestoreClient key encoding/decoding** - `keyEncodingStrategy` / `keyDecodingStrategy` サポート
+
+### 変更
+- **@FirestoreSchema マクロ** - enum から struct ベースに変更
+  - `Schema.Instance(client:)` → `Schema(client:)` の直接初期化
+  - MemberMacro + ExtensionMacro の組み合わせで実装
+  - より直感的で型推論が効くAPI
+- **ドキュメント全面更新** - スキーマベースAPIに統一
+  - `schema.users.document(id).get()` 形式の新API例
+  - README、getting-started、document-operations、queries、schema-definition を更新
+
+### 削除
+- **AccessTokenProvider** - GCPEnvironmentに統合
+- **AutoAuthOperations** - クライアントがtokenを保持する設計に変更
+- **全operationのauthorizationパラメータ** - 不要に
+
+### 破壊的変更
+- FirestoreClient / StorageClient の初期化シグネチャ変更
+- 全CRUD操作から authorization パラメータ削除
+- `@FirestoreSchema` は `enum` ではなく `struct` に適用
+- `Schema.Instance(client:)` → `Schema(client:)` に変更
+
 ## [1.0.7] - 2025-12-12
 
 ### 追加
@@ -222,6 +255,7 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.8]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.4...v1.0.5
@@ -242,3 +276,5 @@ import FirebaseAuthServer
 <!-- Auto-generated on 2025-12-09T22:22:46Z by release workflow -->
 
 <!-- Auto-generated on 2025-12-10T21:42:19Z by release workflow -->
+
+<!-- Auto-generated on 2025-12-12T13:39:16Z by release workflow -->

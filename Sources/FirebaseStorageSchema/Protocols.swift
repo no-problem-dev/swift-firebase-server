@@ -76,40 +76,23 @@ extension StorageObjectPathProtocol {
 
 extension StorageObjectPathProtocol {
     /// ファイルをアップロード
-    /// - Parameters:
-    ///   - data: アップロードするデータ
-    ///   - authorization: 認証トークン
-    /// - Returns: アップロードされたオブジェクトのメタデータ
-    public func upload(
-        data: Data,
-        authorization: String
-    ) async throws -> StorageObject {
-        try await client.upload(
-            data: data,
-            path: path,
-            contentType: contentType,
-            authorization: authorization
-        )
+    public func upload(data: Data) async throws -> StorageObject {
+        try await client.upload(data: data, path: path, contentType: contentType)
     }
 
     /// ファイルをダウンロード
-    /// - Parameter authorization: 認証トークン
-    /// - Returns: ファイルデータ
-    public func download(authorization: String) async throws -> Data {
-        try await client.download(path: path, authorization: authorization)
+    public func download() async throws -> Data {
+        try await client.download(path: path)
     }
 
     /// ファイルを削除
-    /// - Parameter authorization: 認証トークン
-    public func delete(authorization: String) async throws {
-        try await client.delete(path: path, authorization: authorization)
+    public func delete() async throws {
+        try await client.delete(path: path)
     }
 
     /// メタデータを取得
-    /// - Parameter authorization: 認証トークン
-    /// - Returns: オブジェクトのメタデータ
-    public func getMetadata(authorization: String) async throws -> StorageObject {
-        try await client.getMetadata(path: path, authorization: authorization)
+    public func getMetadata() async throws -> StorageObject {
+        try await client.getMetadata(path: path)
     }
 
     /// 公開URLを取得
