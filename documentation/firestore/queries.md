@@ -10,16 +10,11 @@ let usersRef = client.collection("users")
 // クエリを構築して実行
 let activeUsers: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
-        .whereField("status", isEqualTo: .string("active")),
-    authorization: idToken
+        .whereField("status", isEqualTo: .string("active"))
 )
 
 // query メソッドでクロージャ構文も可能
-let users: [User] = try await client.query(
-    usersRef,
-    as: User.self,
-    authorization: idToken
-) { query in
+let users: [User] = try await client.query(usersRef, as: User.self) { query in
     query
         .whereField("status", isEqualTo: .string("active"))
         .limit(to: 10)
@@ -52,16 +47,14 @@ let query = usersRef.query(as: User.self)
 ```swift
 let users: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
-        .order(by: "createdAt", direction: .descending),
-    authorization: idToken
+        .order(by: "createdAt", direction: .descending)
 )
 
 // 複数フィールドでソート
 let users: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
         .order(by: "status")
-        .order(by: "createdAt", direction: .descending),
-    authorization: idToken
+        .order(by: "createdAt", direction: .descending)
 )
 
 // 便利メソッド
@@ -76,8 +69,7 @@ let query = usersRef.query(as: User.self)
 let topUsers: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
         .order(by: "score", direction: .descending)
-        .limit(to: 10),
-    authorization: idToken
+        .limit(to: 10)
 )
 
 // オフセット（ページネーション用）
@@ -85,8 +77,7 @@ let page2: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
         .order(by: "createdAt")
         .offset(20)
-        .limit(to: 20),
-    authorization: idToken
+        .limit(to: 20)
 )
 ```
 
@@ -100,8 +91,7 @@ let results: [User] = try await client.runQuery(
         .whereAnd(
             FieldFilter.isEqualTo("status", .string("active")),
             FieldFilter.isGreaterThanOrEqual("age", .integer(18))
-        ),
-    authorization: idToken
+        )
 )
 ```
 
@@ -113,8 +103,7 @@ let results: [User] = try await client.runQuery(
         .whereOr(
             FieldFilter.isEqualTo("role", .string("admin")),
             FieldFilter.isEqualTo("role", .string("moderator"))
-        ),
-    authorization: idToken
+        )
 )
 ```
 
@@ -148,8 +137,7 @@ let query = usersRef.query(as: User.self)
 let allPosts: [Post] = try await client.runQuery(
     client.collection("posts").query(as: Post.self)
         .collectionGroup()
-        .whereField("published", isEqualTo: .boolean(true)),
-    authorization: idToken
+        .whereField("published", isEqualTo: .boolean(true))
 )
 ```
 

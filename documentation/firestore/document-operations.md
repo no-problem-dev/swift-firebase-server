@@ -36,17 +36,17 @@ let postsRef = client.collection(Schema.Users.Posts.collectionPath("user123"))
 
 ```swift
 // 型指定で取得
-let user: User = try await client.getDocument(userRef, as: User.self, authorization: idToken)
+let user: User = try await client.getDocument(userRef, as: User.self)
 
 // 生のFirestoreDocumentとして取得
-let document = try await client.getDocument(userRef, authorization: idToken)
+let document = try await client.getDocument(userRef)
 ```
 
 ## 作成（Create）
 
 ```swift
 // Encodableオブジェクトを作成
-try await client.createDocument(userRef, data: newUser, authorization: idToken)
+try await client.createDocument(userRef, data: newUser)
 
 // フィールドを直接指定
 try await client.createDocument(
@@ -54,8 +54,7 @@ try await client.createDocument(
     fields: [
         "name": .string("田中太郎"),
         "age": .integer(30)
-    ],
-    authorization: idToken
+    ]
 )
 ```
 
@@ -63,20 +62,19 @@ try await client.createDocument(
 
 ```swift
 // Encodableオブジェクトで更新
-try await client.updateDocument(userRef, data: updatedUser, authorization: idToken)
+try await client.updateDocument(userRef, data: updatedUser)
 
 // フィールドを直接指定
 try await client.updateDocument(
     userRef,
-    fields: ["displayName": .string("新しい名前")],
-    authorization: idToken
+    fields: ["displayName": .string("新しい名前")]
 )
 ```
 
 ## 削除（Delete）
 
 ```swift
-try await client.deleteDocument(userRef, authorization: idToken)
+try await client.deleteDocument(userRef)
 ```
 
 ## 一覧取得
@@ -86,7 +84,6 @@ try await client.deleteDocument(userRef, authorization: idToken)
 let (users, nextPageToken) = try await client.listDocuments(
     in: usersRef,
     as: User.self,
-    authorization: idToken,
     pageSize: 20
 )
 
@@ -95,7 +92,6 @@ if let token = nextPageToken {
     let (moreUsers, _) = try await client.listDocuments(
         in: usersRef,
         as: User.self,
-        authorization: idToken,
         pageSize: 20,
         pageToken: token
     )
@@ -106,7 +102,7 @@ if let token = nextPageToken {
 
 ```swift
 do {
-    let user: User = try await client.getDocument(userRef, as: User.self, authorization: idToken)
+    let user: User = try await client.getDocument(userRef, as: User.self)
 } catch let error as FirestoreError {
     switch error {
     case .api(let apiError):

@@ -9,8 +9,7 @@ let activeUsers: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
         .filter {
             Field("status") == "active"
-        },
-    authorization: idToken
+        }
 )
 ```
 
@@ -73,8 +72,7 @@ let verifiedAdults: [User] = try await client.runQuery(
                 Field("age") >= 18
                 Field("verified") == true
             }
-        },
-    authorization: idToken
+        }
 )
 ```
 
@@ -88,8 +86,7 @@ let admins: [User] = try await client.runQuery(
                 Field("role") == "admin"
                 Field("role") == "moderator"
             }
-        },
-    authorization: idToken
+        }
 )
 ```
 
@@ -107,8 +104,7 @@ let featuredProducts: [Product] = try await client.runQuery(
                     Field("featured") == true
                 }
             }
-        },
-    authorization: idToken
+        }
 )
 ```
 
@@ -132,8 +128,7 @@ func searchUsers(onlyVerified: Bool, minAge: Int?) async throws -> [User] {
                         Field("age") >= minAge
                     }
                 }
-            },
-        authorization: idToken
+            }
     )
 }
 ```
@@ -151,8 +146,7 @@ let users: [User] = try await client.runQuery(
                     Field("status") == status
                 }
             }
-        },
-    authorization: idToken
+        }
 )
 ```
 
@@ -168,8 +162,7 @@ let results: [Product] = try await client.runQuery(
             }
         }
         .order(by: "price")
-        .limit(to: 20),
-    authorization: idToken
+        .limit(to: 20)
 )
 ```
 
