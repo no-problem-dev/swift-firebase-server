@@ -1,168 +1,120 @@
 # クエリ
 
-FirestoreClientのクエリ機能を使用した条件付き検索です。
+Firestoreのクエリ機能です。FilterBuilder DSLによる宣言的な構文を使用します。
 
-## 基本的なクエリ
+## 基本
 
 ```swift
 let usersRef = client.collection("users")
 
 let activeUsers: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
-        .filter {
-            Field("status") == "active"
-        }
+        .filter { Field("status") == "active" }
 )
 ```
 
 ## フィルター演算子
 
-### 比較演算子
+| 演算子 | 説明 | 例 |
+|--------|------|-----|
+| `==` | 等しい | `Field("status") == "active"` |
+| `!=` | 等しくない | `Field("status") != "deleted"` |
+| `<` | より小さい | `Field("age") < 30` |
+| `<=` | 以下 | `Field("age") <= 30` |
+| `>` | より大きい | `Field("age") > 18` |
+| `>=` | 以上 | `Field("age") >= 18` |
+| `.contains()` | 配列に含む | `Field("tags").contains("swift")` |
+| `.containsAny()` | いずれかを含む | `Field("tags").containsAny(["swift", "go"])` |
+| `.in()` | いずれかの値 | `Field("status").in(["active", "pending"])` |
+| `.notIn()` | いずれでもない | `Field("status").notIn(["deleted"])` |
+| `.isNull` | NULLである | `Field("deletedAt").isNull` |
+| `.isNotNull` | NULLでない | `Field("deletedAt").isNotNull` |
+
+## 複合条件
+
+複数条件は `And` または `Or` で囲みます。
 
 ```swift
+// AND条件
 .filter {
-    Field("age") == 25         // 等しい
-    Field("age") != 0          // 等しくない
-    Field("age") < 30          // より小さい
-    Field("age") <= 30         // 以下
-    Field("age") > 18          // より大きい
-    Field("age") >= 18         // 以上
+    And {
+        Field("status") == "active"
+        Field("age") >= 18
+    }
 }
-```
 
-### 配列演算子
-
-```swift
+// OR条件
 .filter {
-    Field("tags").contains("swift")              // 配列に含む
-    Field("tags").containsAny(["swift", "go"])   // いずれかを含む
+    Or {
+        Field("role") == "admin"
+        Field("role") == "moderator"
+    }
 }
-```
 
-### IN演算子
-
-```swift
+// ネスト
 .filter {
-    Field("status").in(["active", "pending"])     // いずれかの値
-    Field("status").notIn(["deleted", "banned"])  // いずれでもない
-}
-```
-
-### NULL/NaN チェック
-
-```swift
-.filter {
-    Field("deletedAt").isNull       // NULLである
-    Field("deletedAt").isNotNull    // NULLでない
-}
-```
-
-## 複合フィルター
-
-### AND条件
-
-```swift
-let verifiedAdults: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter {
-            And {
-                Field("status") == "active"
-                Field("age") >= 18
-                Field("verified") == true
-            }
+    And {
+        Field("active") == true
+        Or {
+            Field("category") == "electronics"
+            Field("featured") == true
         }
-)
+    }
+}
 ```
 
-### OR条件
+## ソート・件数制限
 
 ```swift
-let admins: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter {
-            Or {
-                Field("role") == "admin"
-                Field("role") == "moderator"
-            }
-        }
-)
-```
-
-### ネストした条件
-
-```swift
-let featuredProducts: [Product] = try await client.runQuery(
-    productsRef.query(as: Product.self)
-        .filter {
-            And {
-                Field("active") == true
-                Field("stock") > 0
-                Or {
-                    Field("category") == "electronics"
-                    Field("featured") == true
-                }
-            }
-        }
-)
-```
-
-## ソート
-
-```swift
-let users: [User] = try await client.runQuery(
+let results: [User] = try await client.runQuery(
     usersRef.query(as: User.self)
         .filter { Field("status") == "active" }
         .order(by: "createdAt", direction: .descending)
-)
-
-// 複数フィールドでソート
-let users: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter { Field("status") == "active" }
-        .order(by: "status")
-        .order(by: "createdAt", direction: .descending)
-)
-```
-
-## 件数制限とオフセット
-
-```swift
-let topUsers: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter { Field("status") == "active" }
-        .order(by: "score", direction: .descending)
-        .limit(to: 10)
-)
-
-// ページネーション
-let page2: [User] = try await client.runQuery(
-    usersRef.query(as: User.self)
-        .filter { Field("status") == "active" }
-        .order(by: "createdAt")
-        .offset(20)
         .limit(to: 20)
 )
 ```
 
-## カーソルベースページネーション
+| メソッド | 説明 |
+|----------|------|
+| `.order(by:direction:)` | ソート（`.ascending` / `.descending`） |
+| `.limit(to:)` | 取得件数の上限 |
+| `.offset(_:)` | スキップ件数 |
+| `.select(_:)` | 取得フィールドを限定 |
+
+## ページネーション
 
 ```swift
-let query = usersRef.query(as: User.self)
-    .filter { Field("status") == "active" }
-    .order(by: "createdAt")
-    .start(after: .timestamp(lastCreatedAt))
-    .limit(to: 20)
+// オフセットベース
+.offset(20).limit(to: 20)
+
+// カーソルベース
+.order(by: "createdAt")
+.start(after: .timestamp(lastCreatedAt))
+.limit(to: 20)
 ```
 
-## フィールド選択
+## 動的フィルター
+
+Swift の制御構文が使えます。
 
 ```swift
-let query = usersRef.query(as: User.self)
-    .filter { Field("status") == "active" }
-    .select("name", "email")
+func search(verified: Bool?, minAge: Int?) async throws -> [User] {
+    try await client.runQuery(
+        usersRef.query(as: User.self)
+            .filter {
+                And {
+                    Field("status") == "active"
+                    if let verified { Field("verified") == verified }
+                    if let minAge { Field("age") >= minAge }
+                }
+            }
+    )
+}
 ```
 
-## コレクショングループクエリ
+## コレクショングループ
+
+サブコレクションを横断してクエリします。
 
 ```swift
 let allPosts: [Post] = try await client.runQuery(
@@ -172,42 +124,6 @@ let allPosts: [Post] = try await client.runQuery(
 )
 ```
 
-## 条件分岐
-
-```swift
-func searchUsers(onlyVerified: Bool, minAge: Int?) async throws -> [User] {
-    try await client.runQuery(
-        usersRef.query(as: User.self)
-            .filter {
-                And {
-                    Field("status") == "active"
-
-                    if onlyVerified {
-                        Field("verified") == true
-                    }
-
-                    if let minAge = minAge {
-                        Field("age") >= minAge
-                    }
-                }
-            }
-    )
-}
-```
-
-## 従来のメソッドチェーン（代替構文）
-
-FilterBuilder DSL の代わりに従来のメソッドチェーンも使用可能です：
-
-```swift
-let query = usersRef.query(as: User.self)
-    .whereField("status", isEqualTo: .string("active"))
-    .whereField("age", isGreaterThanOrEqualTo: .integer(18))
-    .order(by: "createdAt", direction: .descending)
-    .limit(to: 10)
-```
-
 ## 関連ドキュメント
 
-- [FilterBuilder DSL](filter-builder-dsl.md) - DSL の詳細リファレンス
-- [ドキュメント操作](document-operations.md) - 基本的なCRUD
+- [ドキュメント操作](document-operations.md) - CRUD操作

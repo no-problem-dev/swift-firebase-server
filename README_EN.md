@@ -78,8 +78,7 @@ dependencies: [
 |-------|-------------|
 | [Getting Started](documentation/getting-started.md) | Setup and quick start |
 | [Firestore Document Operations](documentation/firestore/document-operations.md) | CRUD operations |
-| [Firestore Queries](documentation/firestore/queries.md) | Conditional search |
-| [Firestore FilterBuilder DSL](documentation/firestore/filter-builder-dsl.md) | Declarative filter syntax |
+| [Firestore Queries](documentation/firestore/queries.md) | Filters, sorting, pagination |
 | [Firestore Schema Definition](documentation/firestore/schema-definition.md) | @FirestoreSchema macro |
 | [Firestore Model Definition](documentation/firestore/model-definition.md) | @FirestoreModel macro |
 | [Storage File Operations](documentation/storage/file-operations.md) | Upload & download |

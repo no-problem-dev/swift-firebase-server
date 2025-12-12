@@ -14,7 +14,6 @@
 - **[モデル定義](firestore/model-definition.md)** - `@FirestoreModel`, `@Field`, `@FieldIgnore` マクロ
 - **[ドキュメント操作](firestore/document-operations.md)** - CRUD操作
 - **[クエリ](firestore/queries.md)** - フィルター、ソート、ページネーション
-- **[FilterBuilder DSL](firestore/filter-builder-dsl.md)** - 宣言的なフィルター構文
 
 ### Cloud Storage
 

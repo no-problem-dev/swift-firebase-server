@@ -120,5 +120,4 @@ do {
 
 ## 関連ドキュメント
 
-- [クエリ](queries.md) - 条件付き検索
-- [FilterBuilder DSL](filter-builder-dsl.md) - 宣言的フィルター
+- [クエリ](queries.md) - フィルター、ソート、ページネーション
