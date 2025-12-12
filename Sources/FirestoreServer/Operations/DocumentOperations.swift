@@ -20,7 +20,7 @@ extension FirestoreClient {
         authorization: String
     ) async throws -> T {
         let document = try await getDocument(reference, authorization: authorization)
-        let decoder = FirestoreDecoder()
+        let decoder = FirestoreDecoder(keyDecodingStrategy: configuration.keyDecodingStrategy)
         return try decoder.decode(type, from: document)
     }
 
@@ -67,7 +67,7 @@ extension FirestoreClient {
         data: T,
         authorization: String
     ) async throws {
-        let encoder = FirestoreEncoder()
+        let encoder = FirestoreEncoder(keyEncodingStrategy: configuration.keyEncodingStrategy)
         let fields = try encoder.encode(data)
         try await createDocument(reference, fields: fields, authorization: authorization)
     }
@@ -125,7 +125,7 @@ extension FirestoreClient {
         data: T,
         authorization: String
     ) async throws {
-        let encoder = FirestoreEncoder()
+        let encoder = FirestoreEncoder(keyEncodingStrategy: configuration.keyEncodingStrategy)
         let fields = try encoder.encode(data)
         try await updateDocument(reference, fields: fields, authorization: authorization)
     }
@@ -218,7 +218,7 @@ extension FirestoreClient {
             pageToken: pageToken
         )
 
-        let decoder = FirestoreDecoder()
+        let decoder = FirestoreDecoder(keyDecodingStrategy: configuration.keyDecodingStrategy)
         let decoded = try documents.map { try decoder.decode(type, from: $0) }
         return (decoded, token)
     }

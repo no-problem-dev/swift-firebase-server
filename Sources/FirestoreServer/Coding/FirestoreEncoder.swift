@@ -14,15 +14,34 @@ import Foundation
 /// let encoder = FirestoreEncoder()
 /// let fields = try encoder.encode(User(name: "Alice", age: 30))
 /// // ["name": .string("Alice"), "age": .integer(30)]
+///
+/// // snake_case変換を使用する場合
+/// let snakeCaseEncoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
+/// let fields = try snakeCaseEncoder.encode(User(name: "Alice", age: 30))
+/// // ["name": .string("Alice"), "age": .integer(30)]
+///
+/// struct UserProfile: Codable {
+///     let userId: String
+///     let displayName: String
+/// }
+/// let profileFields = try snakeCaseEncoder.encode(UserProfile(userId: "123", displayName: "Alice"))
+/// // ["user_id": .string("123"), "display_name": .string("Alice")]
 /// ```
-struct FirestoreEncoder: Sendable {
-    init() {}
+public struct FirestoreEncoder: Sendable {
+    /// キーのエンコーディング戦略
+    public let keyEncodingStrategy: KeyEncodingStrategy
+
+    /// イニシャライザ
+    /// - Parameter keyEncodingStrategy: キーのエンコーディング戦略（デフォルト: .useDefaultKeys）
+    public init(keyEncodingStrategy: KeyEncodingStrategy = .useDefaultKeys) {
+        self.keyEncodingStrategy = keyEncodingStrategy
+    }
 
     /// Encodableな値をFirestoreフィールドマップに変換
     /// - Parameter value: エンコードする値
     /// - Returns: フィールド名とFirestoreValueのマップ
-    func encode<T: Encodable>(_ value: T) throws -> [String: FirestoreValue] {
-        let encoder = _FirestoreEncoder()
+    public func encode<T: Encodable>(_ value: T) throws -> [String: FirestoreValue] {
+        let encoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: encoder)
 
         guard case .map(let fields) = encoder.value else {
@@ -34,8 +53,8 @@ struct FirestoreEncoder: Sendable {
     /// Encodableな値を単一のFirestoreValueに変換
     /// - Parameter value: エンコードする値
     /// - Returns: FirestoreValue
-    func encodeValue<T: Encodable>(_ value: T) throws -> FirestoreValue {
-        let encoder = _FirestoreEncoder()
+    public func encodeValue<T: Encodable>(_ value: T) throws -> FirestoreValue {
+        let encoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: encoder)
         return encoder.value
     }
@@ -47,18 +66,26 @@ private final class _FirestoreEncoder: Encoder {
     var codingPath: [CodingKey] = []
     var userInfo: [CodingUserInfoKey: Any] = [:]
     var value: FirestoreValue = .null
+    let keyEncodingStrategy: KeyEncodingStrategy
+
+    init(keyEncodingStrategy: KeyEncodingStrategy = .useDefaultKeys) {
+        self.keyEncodingStrategy = keyEncodingStrategy
+    }
 
     func container<Key: CodingKey>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> {
-        let container = FirestoreKeyedEncodingContainer<Key>(encoder: self)
+        let container = FirestoreKeyedEncodingContainer<Key>(
+            encoder: self,
+            keyEncodingStrategy: keyEncodingStrategy
+        )
         return KeyedEncodingContainer(container)
     }
 
     func unkeyedContainer() -> UnkeyedEncodingContainer {
-        FirestoreUnkeyedEncodingContainer(encoder: self)
+        FirestoreUnkeyedEncodingContainer(encoder: self, keyEncodingStrategy: keyEncodingStrategy)
     }
 
     func singleValueContainer() -> SingleValueEncodingContainer {
-        FirestoreSingleValueEncodingContainer(encoder: self)
+        FirestoreSingleValueEncodingContainer(encoder: self, keyEncodingStrategy: keyEncodingStrategy)
     }
 }
 
@@ -67,10 +94,12 @@ private final class _FirestoreEncoder: Encoder {
 private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
     var codingPath: [CodingKey] = []
     let encoder: _FirestoreEncoder
+    let keyEncodingStrategy: KeyEncodingStrategy
     var fields: [String: FirestoreValue] = [:]
 
-    init(encoder: _FirestoreEncoder) {
+    init(encoder: _FirestoreEncoder, keyEncodingStrategy: KeyEncodingStrategy) {
         self.encoder = encoder
+        self.keyEncodingStrategy = keyEncodingStrategy
         encoder.value = .map([:])
     }
 
@@ -146,7 +175,7 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
         }
 
         // 一般的なEncodable
-        let nestedEncoder = _FirestoreEncoder()
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: nestedEncoder)
         setField(key, nestedEncoder.value)
     }
@@ -155,15 +184,18 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
         keyedBy keyType: NestedKey.Type,
         forKey key: Key
     ) -> KeyedEncodingContainer<NestedKey> {
-        let nestedEncoder = _FirestoreEncoder()
-        let container = FirestoreKeyedEncodingContainer<NestedKey>(encoder: nestedEncoder)
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
+        let container = FirestoreKeyedEncodingContainer<NestedKey>(
+            encoder: nestedEncoder,
+            keyEncodingStrategy: keyEncodingStrategy
+        )
         // Note: 値は後で設定される
         return KeyedEncodingContainer(container)
     }
 
     mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
-        let nestedEncoder = _FirestoreEncoder()
-        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder)
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
+        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder, keyEncodingStrategy: keyEncodingStrategy)
     }
 
     mutating func superEncoder() -> Encoder {
@@ -176,7 +208,8 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
 
     private mutating func setField(_ key: Key, _ value: FirestoreValue) {
         if case .map(var existingFields) = encoder.value {
-            existingFields[key.stringValue] = value
+            let encodedKey = keyEncodingStrategy.encode(key.stringValue)
+            existingFields[encodedKey] = value
             encoder.value = .map(existingFields)
         }
     }
@@ -188,10 +221,12 @@ private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
     var codingPath: [CodingKey] = []
     var count: Int = 0
     let encoder: _FirestoreEncoder
+    let keyEncodingStrategy: KeyEncodingStrategy
     var values: [FirestoreValue] = []
 
-    init(encoder: _FirestoreEncoder) {
+    init(encoder: _FirestoreEncoder, keyEncodingStrategy: KeyEncodingStrategy) {
         self.encoder = encoder
+        self.keyEncodingStrategy = keyEncodingStrategy
         encoder.value = .array([])
     }
 
@@ -265,7 +300,7 @@ private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
             return
         }
 
-        let nestedEncoder = _FirestoreEncoder()
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: nestedEncoder)
         append(nestedEncoder.value)
     }
@@ -273,13 +308,16 @@ private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
     mutating func nestedContainer<NestedKey: CodingKey>(
         keyedBy keyType: NestedKey.Type
     ) -> KeyedEncodingContainer<NestedKey> {
-        let nestedEncoder = _FirestoreEncoder()
-        return KeyedEncodingContainer(FirestoreKeyedEncodingContainer<NestedKey>(encoder: nestedEncoder))
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
+        return KeyedEncodingContainer(FirestoreKeyedEncodingContainer<NestedKey>(
+            encoder: nestedEncoder,
+            keyEncodingStrategy: keyEncodingStrategy
+        ))
     }
 
     mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
-        let nestedEncoder = _FirestoreEncoder()
-        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder)
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
+        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder, keyEncodingStrategy: keyEncodingStrategy)
     }
 
     mutating func superEncoder() -> Encoder {
@@ -300,6 +338,7 @@ private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
 private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContainer {
     var codingPath: [CodingKey] = []
     let encoder: _FirestoreEncoder
+    let keyEncodingStrategy: KeyEncodingStrategy
 
     mutating func encodeNil() throws {
         encoder.value = .null
@@ -371,7 +410,7 @@ private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContain
             return
         }
 
-        let nestedEncoder = _FirestoreEncoder()
+        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: nestedEncoder)
         encoder.value = nestedEncoder.value
     }

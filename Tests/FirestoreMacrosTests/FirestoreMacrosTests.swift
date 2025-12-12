@@ -10,7 +10,6 @@ import FirestoreMacros
 nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
     "FirestoreSchema": FirestoreSchemaMacro.self,
     "Collection": CollectionMacro.self,
-    "SubCollection": SubCollectionMacro.self,
 ]
 #endif
 
@@ -23,23 +22,11 @@ final class FirestoreMacrosTests: XCTestCase {
         assertMacroExpansion(
             """
             @FirestoreSchema
-            struct AppSchema {
+            enum Schema {
             }
             """,
             expandedSource: """
-            struct AppSchema {
-
-                public let database: DatabasePath
-
-                public let client: FirestoreClient
-
-                public init(client: FirestoreClient) {
-                    self.client = client
-                    self.database = client.database
-                }
-            }
-
-            extension AppSchema: FirestoreSchemaProtocol, Sendable {
+            enum Schema {
             }
             """,
             macros: testMacros
@@ -49,83 +36,117 @@ final class FirestoreMacrosTests: XCTestCase {
         #endif
     }
 
-    func testFirestoreSchemaWithCollection() throws {
+    // MARK: - Collection Tests (Top-level)
+
+    func testCollectionMacroTopLevel() throws {
+        #if canImport(FirestoreMacros)
+        assertMacroExpansion(
+            """
+            @Collection("users", model: User.self)
+            enum Users {
+            }
+            """,
+            expandedSource: """
+            enum Users {
+
+                public static let collectionId: String = "users"
+
+                public typealias Model = User
+
+                public static var collectionPath: String {
+                    collectionId
+                }
+
+                public static func documentPath(_ documentId: String) -> String {
+                    collectionPath + "/" + documentId
+                }
+            }
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testCollectionMacroWithDifferentId() throws {
+        #if canImport(FirestoreMacros)
+        assertMacroExpansion(
+            """
+            @Collection("genres", model: Genre.self)
+            enum Genres {
+            }
+            """,
+            expandedSource: """
+            enum Genres {
+
+                public static let collectionId: String = "genres"
+
+                public typealias Model = Genre
+
+                public static var collectionPath: String {
+                    collectionId
+                }
+
+                public static func documentPath(_ documentId: String) -> String {
+                    collectionPath + "/" + documentId
+                }
+            }
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    // MARK: - Full Schema Tests
+
+    func testFullSchemaDefinition() throws {
         #if canImport(FirestoreMacros)
         assertMacroExpansion(
             """
             @FirestoreSchema
-            struct AppSchema {
-                @Collection("users")
-                struct Users {
+            enum Schema {
+                @Collection("users", model: User.self)
+                enum Users {
+                }
+
+                @Collection("genres", model: Genre.self)
+                enum Genres {
                 }
             }
             """,
             expandedSource: """
-            struct AppSchema {
-                struct Users {
+            enum Schema {
+                enum Users {
 
                     public static let collectionId: String = "users"
 
-                    public let database: DatabasePath
+                    public typealias Model = User
 
-                    public let client: FirestoreClient
-
-                    public let parentPath: String?
-
-                    public init(client: FirestoreClient, parentPath: String?) {
-                        self.client = client
-                        self.database = client.database
-                        self.parentPath = parentPath
+                    public static var collectionPath: String {
+                        collectionId
                     }
 
-                    public struct UsersDocument: FirestoreDocumentProtocol, Sendable {
-                        public let documentId: String
-                        public let database: DatabasePath
-                        public let client: FirestoreClient
-                        public let collectionPath: String
-
-                        public init(documentId: String, database: DatabasePath, client: FirestoreClient, collectionPath: String) {
-                            self.documentId = documentId
-                            self.database = database
-                            self.client = client
-                            self.collectionPath = collectionPath
-                        }
-                    }
-
-                    public func callAsFunction(_ documentId: String) -> UsersDocument {
-                        let path: String
-                        if let parentPath = parentPath {
-                            path = "\\(parentPath)/\\(Self.collectionId)"
-                        } else {
-                            path = Self.collectionId
-                        }
-                        return UsersDocument(
-                            documentId: documentId,
-                            database: database,
-                            client: client,
-                            collectionPath: path
-                        )
+                    public static func documentPath(_ documentId: String) -> String {
+                        collectionPath + "/" + documentId
                     }
                 }
+                enum Genres {
 
-                public let database: DatabasePath
+                    public static let collectionId: String = "genres"
 
-                public let client: FirestoreClient
+                    public typealias Model = Genre
 
-                public init(client: FirestoreClient) {
-                    self.client = client
-                    self.database = client.database
+                    public static var collectionPath: String {
+                        collectionId
+                    }
+
+                    public static func documentPath(_ documentId: String) -> String {
+                        collectionPath + "/" + documentId
+                    }
                 }
-
-                public var users: Users {
-                    Users(client: client, parentPath: nil)
-                }
-            }
-
-            extension AppSchema.Users: FirestoreCollectionProtocol, Sendable {
-            }
-
-            extension AppSchema: FirestoreSchemaProtocol, Sendable {
             }
             """,
             macros: testMacros
@@ -135,133 +156,27 @@ final class FirestoreMacrosTests: XCTestCase {
         #endif
     }
 
-    // MARK: - Collection Tests
+    // MARK: - Error Tests
 
-    func testCollectionMacro() throws {
+    func testCollectionMacroMissingModelError() throws {
         #if canImport(FirestoreMacros)
         assertMacroExpansion(
             """
             @Collection("users")
-            struct Users {
+            enum Users {
             }
             """,
             expandedSource: """
-            struct Users {
-
-                public static let collectionId: String = "users"
-
-                public let database: DatabasePath
-
-                public let client: FirestoreClient
-
-                public let parentPath: String?
-
-                public init(client: FirestoreClient, parentPath: String?) {
-                    self.client = client
-                    self.database = client.database
-                    self.parentPath = parentPath
-                }
-
-                public struct UsersDocument: FirestoreDocumentProtocol, Sendable {
-                    public let documentId: String
-                    public let database: DatabasePath
-                    public let client: FirestoreClient
-                    public let collectionPath: String
-
-                    public init(documentId: String, database: DatabasePath, client: FirestoreClient, collectionPath: String) {
-                        self.documentId = documentId
-                        self.database = database
-                        self.client = client
-                        self.collectionPath = collectionPath
-                    }
-                }
-
-                public func callAsFunction(_ documentId: String) -> UsersDocument {
-                    let path: String
-                    if let parentPath = parentPath {
-                        path = "\\(parentPath)/\\(Self.collectionId)"
-                    } else {
-                        path = Self.collectionId
-                    }
-                    return UsersDocument(
-                        documentId: documentId,
-                        database: database,
-                        client: client,
-                        collectionPath: path
-                    )
-                }
-            }
-
-            extension Users: FirestoreCollectionProtocol, Sendable {
+            enum Users {
             }
             """,
-            macros: testMacros
-        )
-        #else
-        throw XCTSkip("macros are only supported when running tests for the host platform")
-        #endif
-    }
-
-    // MARK: - SubCollection Tests
-
-    func testSubCollectionMacro() throws {
-        #if canImport(FirestoreMacros)
-        assertMacroExpansion(
-            """
-            @SubCollection("books")
-            struct Books {
-            }
-            """,
-            expandedSource: """
-            struct Books {
-
-                public static let collectionId: String = "books"
-
-                public let database: DatabasePath
-
-                public let client: FirestoreClient
-
-                public let parentPath: String?
-
-                public init(client: FirestoreClient, parentPath: String?) {
-                    self.client = client
-                    self.database = client.database
-                    self.parentPath = parentPath
-                }
-
-                public struct BooksDocument: FirestoreDocumentProtocol, Sendable {
-                    public let documentId: String
-                    public let database: DatabasePath
-                    public let client: FirestoreClient
-                    public let collectionPath: String
-
-                    public init(documentId: String, database: DatabasePath, client: FirestoreClient, collectionPath: String) {
-                        self.documentId = documentId
-                        self.database = database
-                        self.client = client
-                        self.collectionPath = collectionPath
-                    }
-                }
-
-                public func callAsFunction(_ documentId: String) -> BooksDocument {
-                    let path: String
-                    if let parentPath = parentPath {
-                        path = "\\(parentPath)/\\(Self.collectionId)"
-                    } else {
-                        path = Self.collectionId
-                    }
-                    return BooksDocument(
-                        documentId: documentId,
-                        database: database,
-                        client: client,
-                        collectionPath: path
-                    )
-                }
-            }
-
-            extension Books: FirestoreCollectionProtocol, Sendable {
-            }
-            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Collection requires collectionId and model arguments: @Collection(\"name\", model: Type.self)",
+                    line: 1,
+                    column: 1
+                )
+            ],
             macros: testMacros
         )
         #else
