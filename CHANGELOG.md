@@ -9,6 +9,39 @@
 
 なし
 
+## [1.0.7] - 2025-12-12
+
+### 追加
+- **@FirestoreModel マクロ** - Firestore モデル定義用マクロを新規追加
+  - `keyStrategy: .snakeCase` で camelCase → snake_case 自動変換
+  - `@Field("custom_key")` でカスタムフィールド名指定
+  - `@FieldIgnore` でエンコード/デコード対象から除外
+  - `FirestoreModelProtocol` への自動準拠と `Codable` 適合
+  - `CodingKeys` enum の自動生成
+
+- **KeyStrategy** - ランタイムでのキー変換戦略
+  - `FirestoreConfiguration` での設定サポート
+  - `.snakeCase` / `.useDefault` / `.custom` 変換に対応
+
+- **ドキュメント強化**
+  - Swift Macro リファレンス（6ドキュメント）を追加
+  - README に「できること」セクションを追加
+  - `docs/` → `documentation/` にリネーム（DocC出力と分離）
+
+### 変更
+- **@Collection マクロの改善**
+  - `model:` パラメータで型関連付けを必須化
+  - `typealias Model = T` を自動生成
+  - ネスト検出の自動化（`lexicalContext` 使用）
+  - 3階層以上のネストに対応
+
+### 削除
+- **@SubCollection マクロ** - `@Collection` のネストで代替可能なため廃止
+
+### 破壊的変更
+- `@Collection` に `model:` パラメータが必須
+- `@SubCollection` マクロを削除（`@Collection` のネストで代替）
+
 ## [1.0.6] - 2025-12-11
 
 ### 追加
@@ -189,6 +222,7 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[1.0.7]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.3...v1.0.4
