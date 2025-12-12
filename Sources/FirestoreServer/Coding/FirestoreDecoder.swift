@@ -13,16 +13,31 @@ import Foundation
 ///
 /// let decoder = FirestoreDecoder()
 /// let user: User = try decoder.decode(User.self, from: firestoreDocument)
+///
+/// // snake_caseからの変換を使用する場合
+/// struct UserProfile: Codable {
+///     let userId: String      // Firestoreでは "user_id"
+///     let displayName: String // Firestoreでは "display_name"
+/// }
+/// let snakeCaseDecoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
+/// let profile: UserProfile = try snakeCaseDecoder.decode(UserProfile.self, from: fields)
 /// ```
-struct FirestoreDecoder: Sendable {
-    init() {}
+public struct FirestoreDecoder: Sendable {
+    /// キーのデコーディング戦略
+    public let keyDecodingStrategy: KeyDecodingStrategy
+
+    /// イニシャライザ
+    /// - Parameter keyDecodingStrategy: キーのデコーディング戦略（デフォルト: .useDefaultKeys）
+    public init(keyDecodingStrategy: KeyDecodingStrategy = .useDefaultKeys) {
+        self.keyDecodingStrategy = keyDecodingStrategy
+    }
 
     /// FirestoreDocumentからDecodableな型に変換
     /// - Parameters:
     ///   - type: デコード先の型
     ///   - document: Firestoreドキュメント
     /// - Returns: デコードされた値
-    func decode<T: Decodable>(_ type: T.Type, from document: FirestoreDocument) throws -> T {
+    public func decode<T: Decodable>(_ type: T.Type, from document: FirestoreDocument) throws -> T {
         try decode(type, from: document.fields)
     }
 
@@ -31,8 +46,8 @@ struct FirestoreDecoder: Sendable {
     ///   - type: デコード先の型
     ///   - fields: フィールドマップ
     /// - Returns: デコードされた値
-    func decode<T: Decodable>(_ type: T.Type, from fields: [String: FirestoreValue]) throws -> T {
-        let decoder = _FirestoreDecoder(value: .map(fields))
+    public func decode<T: Decodable>(_ type: T.Type, from fields: [String: FirestoreValue]) throws -> T {
+        let decoder = _FirestoreDecoder(value: .map(fields), keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 
@@ -41,8 +56,8 @@ struct FirestoreDecoder: Sendable {
     ///   - type: デコード先の型
     ///   - value: FirestoreValue
     /// - Returns: デコードされた値
-    func decodeValue<T: Decodable>(_ type: T.Type, from value: FirestoreValue) throws -> T {
-        let decoder = _FirestoreDecoder(value: value)
+    public func decodeValue<T: Decodable>(_ type: T.Type, from value: FirestoreValue) throws -> T {
+        let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 }
@@ -53,27 +68,41 @@ private final class _FirestoreDecoder: Decoder {
     var codingPath: [CodingKey] = []
     var userInfo: [CodingUserInfoKey: Any] = [:]
     let value: FirestoreValue
+    let keyDecodingStrategy: KeyDecodingStrategy
 
-    init(value: FirestoreValue) {
+    init(value: FirestoreValue, keyDecodingStrategy: KeyDecodingStrategy = .useDefaultKeys) {
         self.value = value
+        self.keyDecodingStrategy = keyDecodingStrategy
     }
 
     func container<Key: CodingKey>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> {
         guard case .map(let fields) = value else {
             throw FirestoreDecodingError.typeMismatch(expected: "map", actual: value)
         }
-        return KeyedDecodingContainer(FirestoreKeyedDecodingContainer<Key>(fields: fields, codingPath: codingPath))
+        return KeyedDecodingContainer(FirestoreKeyedDecodingContainer<Key>(
+            fields: fields,
+            codingPath: codingPath,
+            keyDecodingStrategy: keyDecodingStrategy
+        ))
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         guard case .array(let values) = value else {
             throw FirestoreDecodingError.typeMismatch(expected: "array", actual: value)
         }
-        return FirestoreUnkeyedDecodingContainer(values: values, codingPath: codingPath)
+        return FirestoreUnkeyedDecodingContainer(
+            values: values,
+            codingPath: codingPath,
+            keyDecodingStrategy: keyDecodingStrategy
+        )
     }
 
     func singleValueContainer() throws -> SingleValueDecodingContainer {
-        FirestoreSingleValueDecodingContainer(codingPath: codingPath, value: value)
+        FirestoreSingleValueDecodingContainer(
+            codingPath: codingPath,
+            value: value,
+            keyDecodingStrategy: keyDecodingStrategy
+        )
     }
 }
 
@@ -82,28 +111,69 @@ private final class _FirestoreDecoder: Decoder {
 private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey]
     var allKeys: [Key] {
-        fields.keys.compactMap { Key(stringValue: $0) }
+        fields.keys.compactMap { firestoreKey in
+            // Firestoreのキーを変換してSwiftのキーを生成
+            let swiftKey = keyDecodingStrategy.decode(firestoreKey)
+            return Key(stringValue: swiftKey)
+        }
     }
 
     let fields: [String: FirestoreValue]
+    let keyDecodingStrategy: KeyDecodingStrategy
 
-    init(fields: [String: FirestoreValue], codingPath: [CodingKey]) {
+    init(fields: [String: FirestoreValue], codingPath: [CodingKey], keyDecodingStrategy: KeyDecodingStrategy) {
         self.fields = fields
         self.codingPath = codingPath
+        self.keyDecodingStrategy = keyDecodingStrategy
     }
 
     func contains(_ key: Key) -> Bool {
-        fields[key.stringValue] != nil
+        getFirestoreKey(for: key) != nil
     }
 
     func decodeNil(forKey key: Key) throws -> Bool {
-        guard let value = fields[key.stringValue] else {
+        guard let firestoreKey = getFirestoreKey(for: key),
+              let value = fields[firestoreKey] else {
             return true
         }
         if case .null = value {
             return true
         }
         return false
+    }
+
+    /// SwiftのキーからFirestoreのキーを取得する
+    /// - Parameter key: Swiftのキー（camelCase）
+    /// - Returns: Firestoreのキー（snake_case）、見つからない場合はnil
+    private func getFirestoreKey(for key: Key) -> String? {
+        let swiftKeyString = key.stringValue
+
+        // まず完全一致を試す
+        if fields[swiftKeyString] != nil {
+            return swiftKeyString
+        }
+
+        // 戦略に基づいてキーを変換して探す
+        switch keyDecodingStrategy {
+        case .useDefaultKeys:
+            return nil
+        case .convertFromSnakeCase:
+            // camelCaseをsnake_caseに変換して探す
+            let snakeCaseKey = swiftKeyString.convertToSnakeCase()
+            if fields[snakeCaseKey] != nil {
+                return snakeCaseKey
+            }
+            return nil
+        case .custom:
+            // カスタム戦略の場合、全てのキーを変換して一致を探す
+            for firestoreKey in fields.keys {
+                let decodedKey = keyDecodingStrategy.decode(firestoreKey)
+                if decodedKey == swiftKeyString {
+                    return firestoreKey
+                }
+            }
+            return nil
+        }
     }
 
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
@@ -196,7 +266,7 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
         }
 
         // 一般的なDecodable
-        let decoder = _FirestoreDecoder(value: value)
+        let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 
@@ -210,7 +280,8 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
         return KeyedDecodingContainer(
             FirestoreKeyedDecodingContainer<NestedKey>(
                 fields: nestedFields,
-                codingPath: codingPath + [key]
+                codingPath: codingPath + [key],
+                keyDecodingStrategy: keyDecodingStrategy
             )
         )
     }
@@ -219,19 +290,24 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
         guard case .array(let values) = try getValue(for: key) else {
             throw FirestoreDecodingError.typeMismatch(expected: "array", actual: try getValue(for: key))
         }
-        return FirestoreUnkeyedDecodingContainer(values: values, codingPath: codingPath + [key])
+        return FirestoreUnkeyedDecodingContainer(
+            values: values,
+            codingPath: codingPath + [key],
+            keyDecodingStrategy: keyDecodingStrategy
+        )
     }
 
     func superDecoder() throws -> Decoder {
-        _FirestoreDecoder(value: .map(fields))
+        _FirestoreDecoder(value: .map(fields), keyDecodingStrategy: keyDecodingStrategy)
     }
 
     func superDecoder(forKey key: Key) throws -> Decoder {
-        _FirestoreDecoder(value: try getValue(for: key))
+        _FirestoreDecoder(value: try getValue(for: key), keyDecodingStrategy: keyDecodingStrategy)
     }
 
     private func getValue(for key: Key) throws -> FirestoreValue {
-        guard let value = fields[key.stringValue] else {
+        guard let firestoreKey = getFirestoreKey(for: key),
+              let value = fields[firestoreKey] else {
             throw FirestoreDecodingError.keyNotFound(key.stringValue)
         }
         return value
@@ -247,10 +323,12 @@ private struct FirestoreUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     var currentIndex: Int = 0
 
     let values: [FirestoreValue]
+    let keyDecodingStrategy: KeyDecodingStrategy
 
-    init(values: [FirestoreValue], codingPath: [CodingKey]) {
+    init(values: [FirestoreValue], codingPath: [CodingKey], keyDecodingStrategy: KeyDecodingStrategy = .useDefaultKeys) {
         self.values = values
         self.codingPath = codingPath
+        self.keyDecodingStrategy = keyDecodingStrategy
     }
 
     mutating func decodeNil() throws -> Bool {
@@ -352,7 +430,7 @@ private struct FirestoreUnkeyedDecodingContainer: UnkeyedDecodingContainer {
             return data as! T
         }
 
-        let decoder = _FirestoreDecoder(value: value)
+        let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 
@@ -363,7 +441,11 @@ private struct FirestoreUnkeyedDecodingContainer: UnkeyedDecodingContainer {
             throw FirestoreDecodingError.typeMismatch(expected: "map", actual: values[currentIndex - 1])
         }
         return KeyedDecodingContainer(
-            FirestoreKeyedDecodingContainer<NestedKey>(fields: fields, codingPath: codingPath)
+            FirestoreKeyedDecodingContainer<NestedKey>(
+                fields: fields,
+                codingPath: codingPath,
+                keyDecodingStrategy: keyDecodingStrategy
+            )
         )
     }
 
@@ -371,11 +453,15 @@ private struct FirestoreUnkeyedDecodingContainer: UnkeyedDecodingContainer {
         guard case .array(let nestedValues) = try getNextValue() else {
             throw FirestoreDecodingError.typeMismatch(expected: "array", actual: values[currentIndex - 1])
         }
-        return FirestoreUnkeyedDecodingContainer(values: nestedValues, codingPath: codingPath)
+        return FirestoreUnkeyedDecodingContainer(
+            values: nestedValues,
+            codingPath: codingPath,
+            keyDecodingStrategy: keyDecodingStrategy
+        )
     }
 
     mutating func superDecoder() throws -> Decoder {
-        _FirestoreDecoder(value: try getNextValue())
+        _FirestoreDecoder(value: try getNextValue(), keyDecodingStrategy: keyDecodingStrategy)
     }
 
     private mutating func getNextValue() throws -> FirestoreValue {
@@ -393,6 +479,7 @@ private struct FirestoreUnkeyedDecodingContainer: UnkeyedDecodingContainer {
 private struct FirestoreSingleValueDecodingContainer: SingleValueDecodingContainer {
     var codingPath: [CodingKey]
     let value: FirestoreValue
+    let keyDecodingStrategy: KeyDecodingStrategy
 
     func decodeNil() -> Bool {
         if case .null = value { return true }
@@ -484,7 +571,7 @@ private struct FirestoreSingleValueDecodingContainer: SingleValueDecodingContain
             return data as! T
         }
 
-        let decoder = _FirestoreDecoder(value: value)
+        let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 }

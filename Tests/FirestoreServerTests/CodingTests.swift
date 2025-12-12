@@ -155,4 +155,271 @@ struct CodingTests {
 
         #expect(original == decoded)
     }
+
+    // MARK: - Key Strategy Tests
+
+    @Test("String.convertToSnakeCase - simple camelCase")
+    func stringConvertToSnakeCaseSimple() {
+        #expect("userId".convertToSnakeCase() == "user_id")
+        #expect("displayName".convertToSnakeCase() == "display_name")
+        #expect("createdAt".convertToSnakeCase() == "created_at")
+        #expect("isActive".convertToSnakeCase() == "is_active")
+    }
+
+    @Test("String.convertToSnakeCase - with consecutive uppercase")
+    func stringConvertToSnakeCaseConsecutive() {
+        #expect("URLString".convertToSnakeCase() == "url_string")
+        #expect("isHTTPSEnabled".convertToSnakeCase() == "is_https_enabled")
+        #expect("httpMethod".convertToSnakeCase() == "http_method")
+    }
+
+    @Test("String.convertToSnakeCase - edge cases")
+    func stringConvertToSnakeCaseEdgeCases() {
+        #expect("name".convertToSnakeCase() == "name")
+        #expect("Name".convertToSnakeCase() == "name")
+        #expect("".convertToSnakeCase() == "")
+        #expect("already_snake".convertToSnakeCase() == "already_snake")
+    }
+
+    @Test("String.convertFromSnakeCase - simple snake_case")
+    func stringConvertFromSnakeCaseSimple() {
+        #expect("user_id".convertFromSnakeCase() == "userId")
+        #expect("display_name".convertFromSnakeCase() == "displayName")
+        #expect("created_at".convertFromSnakeCase() == "createdAt")
+        #expect("is_active".convertFromSnakeCase() == "isActive")
+    }
+
+    @Test("String.convertFromSnakeCase - edge cases")
+    func stringConvertFromSnakeCaseEdgeCases() {
+        #expect("name".convertFromSnakeCase() == "name")
+        #expect("".convertFromSnakeCase() == "")
+        #expect("alreadyCamelCase".convertFromSnakeCase() == "alreadyCamelCase")
+    }
+
+    @Test("FirestoreEncoder - snake_case key encoding")
+    func encoderSnakeCaseKeyEncoding() throws {
+        struct UserProfile: Codable {
+            let userId: String
+            let displayName: String
+            let createdAt: Date
+        }
+
+        let testDate = Date(timeIntervalSince1970: 1704067200)
+        let encoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
+        let fields = try encoder.encode(UserProfile(
+            userId: "abc123",
+            displayName: "Alice",
+            createdAt: testDate
+        ))
+
+        #expect(fields["user_id"] == .string("abc123"))
+        #expect(fields["display_name"] == .string("Alice"))
+        #expect(fields["created_at"] == .timestamp(testDate))
+        // Ensure camelCase keys are NOT present
+        #expect(fields["userId"] == nil)
+        #expect(fields["displayName"] == nil)
+        #expect(fields["createdAt"] == nil)
+    }
+
+    @Test("FirestoreDecoder - snake_case key decoding")
+    func decoderSnakeCaseKeyDecoding() throws {
+        struct UserProfile: Codable, Equatable {
+            let userId: String
+            let displayName: String
+            let profileImageId: String?
+        }
+
+        let fields: [String: FirestoreValue] = [
+            "user_id": .string("abc123"),
+            "display_name": .string("Alice"),
+            "profile_image_id": .string("img456"),
+        ]
+
+        let decoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
+        let profile = try decoder.decode(UserProfile.self, from: fields)
+
+        #expect(profile.userId == "abc123")
+        #expect(profile.displayName == "Alice")
+        #expect(profile.profileImageId == "img456")
+    }
+
+    @Test("Round-trip with snake_case strategy")
+    func roundTripSnakeCase() throws {
+        struct UserProfile: Codable, Equatable {
+            let userId: String
+            let displayName: String
+            let readingStreak: Int
+            let isActive: Bool
+        }
+
+        let original = UserProfile(
+            userId: "abc123",
+            displayName: "Alice",
+            readingStreak: 7,
+            isActive: true
+        )
+
+        let encoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
+        let fields = try encoder.encode(original)
+
+        // Verify snake_case keys
+        #expect(fields["user_id"] != nil)
+        #expect(fields["display_name"] != nil)
+        #expect(fields["reading_streak"] != nil)
+        #expect(fields["is_active"] != nil)
+
+        let decoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
+        let decoded = try decoder.decode(UserProfile.self, from: fields)
+
+        #expect(original == decoded)
+    }
+
+    @Test("FirestoreEncoder - nested struct with snake_case")
+    func encoderNestedSnakeCase() throws {
+        struct Address: Codable {
+            let streetName: String
+            let postalCode: String
+        }
+        struct User: Codable {
+            let userName: String
+            let homeAddress: Address
+        }
+
+        let encoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
+        let fields = try encoder.encode(User(
+            userName: "Alice",
+            homeAddress: Address(streetName: "Main St", postalCode: "12345")
+        ))
+
+        #expect(fields["user_name"] == .string("Alice"))
+        if case .map(let addressFields) = fields["home_address"] {
+            #expect(addressFields["street_name"] == .string("Main St"))
+            #expect(addressFields["postal_code"] == .string("12345"))
+        } else {
+            Issue.record("Expected map for home_address")
+        }
+    }
+
+    @Test("FirestoreDecoder - nested struct with snake_case")
+    func decoderNestedSnakeCase() throws {
+        struct Address: Codable, Equatable {
+            let streetName: String
+            let postalCode: String
+        }
+        struct User: Codable, Equatable {
+            let userName: String
+            let homeAddress: Address
+        }
+
+        let fields: [String: FirestoreValue] = [
+            "user_name": .string("Alice"),
+            "home_address": .map([
+                "street_name": .string("Main St"),
+                "postal_code": .string("12345"),
+            ]),
+        ]
+
+        let decoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
+        let user = try decoder.decode(User.self, from: fields)
+
+        #expect(user.userName == "Alice")
+        #expect(user.homeAddress.streetName == "Main St")
+        #expect(user.homeAddress.postalCode == "12345")
+    }
+
+    @Test("FirestoreEncoder - array with snake_case")
+    func encoderArraySnakeCase() throws {
+        struct Container: Codable {
+            let itemList: [Item]
+        }
+        struct Item: Codable {
+            let itemName: String
+            let itemPrice: Int
+        }
+
+        let encoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
+        let fields = try encoder.encode(Container(itemList: [
+            Item(itemName: "Book", itemPrice: 1000),
+            Item(itemName: "Pen", itemPrice: 200),
+        ]))
+
+        if case .array(let items) = fields["item_list"] {
+            #expect(items.count == 2)
+            if case .map(let item1) = items[0] {
+                #expect(item1["item_name"] == .string("Book"))
+                #expect(item1["item_price"] == .integer(1000))
+            } else {
+                Issue.record("Expected map for item")
+            }
+        } else {
+            Issue.record("Expected array for item_list")
+        }
+    }
+
+    @Test("FirestoreDecoder - array with snake_case")
+    func decoderArraySnakeCase() throws {
+        struct Container: Codable, Equatable {
+            let itemList: [Item]
+        }
+        struct Item: Codable, Equatable {
+            let itemName: String
+            let itemPrice: Int
+        }
+
+        let fields: [String: FirestoreValue] = [
+            "item_list": .array([
+                .map(["item_name": .string("Book"), "item_price": .integer(1000)]),
+                .map(["item_name": .string("Pen"), "item_price": .integer(200)]),
+            ]),
+        ]
+
+        let decoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
+        let container = try decoder.decode(Container.self, from: fields)
+
+        #expect(container.itemList.count == 2)
+        #expect(container.itemList[0].itemName == "Book")
+        #expect(container.itemList[0].itemPrice == 1000)
+        #expect(container.itemList[1].itemName == "Pen")
+        #expect(container.itemList[1].itemPrice == 200)
+    }
+
+    @Test("KeyEncodingStrategy - custom transformation")
+    func keyEncodingStrategyCustom() throws {
+        struct User: Codable {
+            let name: String
+            let age: Int
+        }
+
+        let encoder = FirestoreEncoder(keyEncodingStrategy: .custom { key in
+            "prefix_\(key)"
+        })
+        let fields = try encoder.encode(User(name: "Alice", age: 30))
+
+        #expect(fields["prefix_name"] == .string("Alice"))
+        #expect(fields["prefix_age"] == .integer(30))
+    }
+
+    @Test("KeyDecodingStrategy - custom transformation")
+    func keyDecodingStrategyCustom() throws {
+        struct User: Codable, Equatable {
+            let name: String
+            let age: Int
+        }
+
+        let fields: [String: FirestoreValue] = [
+            "prefix_name": .string("Alice"),
+            "prefix_age": .integer(30),
+        ]
+
+        let decoder = FirestoreDecoder(keyDecodingStrategy: .custom { key in
+            if key.hasPrefix("prefix_") {
+                return String(key.dropFirst(7))
+            }
+            return key
+        })
+        let user = try decoder.decode(User.self, from: fields)
+
+        #expect(user.name == "Alice")
+        #expect(user.age == 30)
+    }
 }

@@ -17,7 +17,7 @@ extension FirestoreClient {
         authorization: String
     ) async throws -> [T] {
         let documents = try await runQueryRaw(query, authorization: authorization)
-        let decoder = FirestoreDecoder()
+        let decoder = FirestoreDecoder(keyDecodingStrategy: configuration.keyDecodingStrategy)
         return try documents.map { try decoder.decode(T.self, from: $0) }
     }
 
