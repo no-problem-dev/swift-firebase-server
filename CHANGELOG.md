@@ -9,6 +9,13 @@
 
 なし
 
+## [1.0.9] - 2026-01-02
+
+### 変更
+
+- **Swift 6.0 にダウングレード** - Swift 6.2 nightly のコンパイラバグを回避
+  - swift-configuration の FileProvider で発生する SIL 検証エラーを解消
+
 ## [1.0.8] - 2025-12-13
 
 ### 追加
@@ -255,6 +262,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.9...HEAD
+[1.0.9]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.5...v1.0.6
