@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import PackageDescription
 import CompilerPluginSupport
@@ -36,11 +36,11 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.23.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.23.0")),
+        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.65.0")),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", .upToNextMajor(from: "602.0.0")),
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", .upToNextMajor(from: "1.4.0")),
+        .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMajor(from: "4.0.0")),
     ],
     targets: [
         // Internal shared module (not exposed as a product)
