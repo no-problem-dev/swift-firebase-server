@@ -9,6 +9,15 @@
 
 なし
 
+## [1.0.11] - 2026-01-07
+
+### 修正
+
+- **Query.where() フィルターチェーン問題** - whereField()をチェーンした際にフィルターが上書きされる問題を修正
+  - 以前: 複数のwhereField()呼び出しで最後のフィルターのみ適用される
+  - 修正後: 複数のフィルターがANDで正しく結合される
+  - 例: `.whereField("timestamp", isGreaterThanOrEqualTo: from).whereField("timestamp", isLessThan: to)` が正しく動作
+
 ## [1.0.10] - 2026-01-02
 
 ### 変更
@@ -278,7 +287,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.10...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...HEAD
+[1.0.11]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.7...v1.0.8
@@ -308,3 +318,5 @@ import FirebaseAuthServer
 <!-- Auto-generated on 2025-12-12T23:29:43Z by release workflow -->
 
 <!-- Auto-generated on 2026-01-02T04:47:00Z by release workflow -->
+
+<!-- Auto-generated on 2026-01-02T07:31:27Z by release workflow -->
