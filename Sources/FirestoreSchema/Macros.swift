@@ -79,7 +79,7 @@ public enum FirestoreKeyStrategy: Sendable {
 /// ```
 ///
 /// - Parameter keyStrategy: デフォルトのキー変換戦略。省略時は`.useDefault`
-@attached(member, names: named(CodingKeys))
+@attached(member, names: named(CodingKeys), named(Fields))
 @attached(extension, conformances: FirestoreModelProtocol, Codable, Sendable)
 public macro FirestoreModel(
     keyStrategy: FirestoreKeyStrategy = .useDefault
