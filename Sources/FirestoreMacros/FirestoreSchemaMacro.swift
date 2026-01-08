@@ -7,40 +7,33 @@ import SwiftSyntaxMacros
 /// - `init(client:)` イニシャライザ
 /// - `client` プロパティ
 /// - `database` プロパティ
-/// - 各コレクションのインスタンスプロパティ（型付きコレクション）
+/// - 各コレクションのインスタンスプロパティ
+/// - サブコレクションを持つコレクション用の専用Collection/Document型
 ///
 /// 生成例:
 /// ```swift
 /// @FirestoreSchema
 /// struct Schema {
 ///     @Collection("users", model: User.self)
-///     enum Users {}
+///     enum Users {
+///         @Collection("books", model: Book.self)
+///         enum Books {}
+///     }
 ///
 ///     @Collection("genres", model: Genre.self)
 ///     enum Genres {}
 /// }
 ///
-/// // 展開後
-/// struct Schema: FirestoreSchemaProtocol {
-///     public let client: FirestoreClient
-///     public var database: DatabasePath { client.database }
+/// // 展開後:
+/// // - Schema.users: UsersCollection（専用型、サブコレクションあり）
+/// // - Schema.genres: FirestoreCollection<Genre>（汎用型、サブコレクションなし）
+/// // - UsersCollection.document(_:) -> UsersDocument
+/// // - UsersDocument.books: FirestoreCollection<Book>
 ///
-///     public init(client: FirestoreClient) {
-///         self.client = client
-///     }
-///
-///     public var users: FirestoreCollection<User> {
-///         FirestoreCollection(collectionId: Users.collectionId, database: database, client: client)
-///     }
-///
-///     public var genres: FirestoreCollection<Genre> {
-///         FirestoreCollection(collectionId: Genres.collectionId, database: database, client: client)
-///     }
-/// }
-///
-/// // 使用例
+/// // 使用例:
 /// let schema = Schema(client: firestoreClient)
-/// let user = try await schema.users.document("user123").get()  // User型が推論される
+/// let user = try await schema.users.document("userId").get()
+/// let books = schema.users.document("userId").books  // サブコレクションへのアクセス
 /// ```
 public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
 
@@ -52,47 +45,52 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // structであることを確認
         guard let structDecl = declaration.as(StructDeclSyntax.self) else {
             throw MacroError.message("@FirestoreSchema can only be applied to structs")
         }
 
-        // @Collectionが付いたネストされたenumを見つける
-        let collections = findCollectionEnums(in: structDecl)
+        // コレクション構造を再帰的にパース
+        let rootCollections = parseCollections(in: structDecl)
 
-        // コレクションプロパティを生成
-        let collectionProperties = collections.map { collection in
-            let propertyName = collection.enumName.lowercasedFirst()
-            return """
-                public var \(propertyName): FirestoreCollection<\(collection.modelType)> {
-                    FirestoreCollection(collectionId: \(collection.enumName).collectionId, database: database, client: client)
-                }
-            """
-        }.joined(separator: "\n\n")
+        var result: [DeclSyntax] = []
 
-        // プロパティとイニシャライザを直接生成
-        let clientProperty: DeclSyntax = "public let client: FirestoreClient"
-
-        let databaseProperty: DeclSyntax = """
-            public var database: DatabasePath { client.database }
-            """
-
-        let initializer: DeclSyntax = """
+        // 基本プロパティ
+        result.append("public let client: FirestoreClient")
+        result.append("public var database: DatabasePath { client.database }")
+        result.append("""
             public init(client: FirestoreClient) {
                 self.client = client
             }
-            """
+            """)
 
-        var result: [DeclSyntax] = [
-            clientProperty,
-            databaseProperty,
-            initializer,
-        ]
+        // トップレベルコレクションプロパティを生成
+        for collection in rootCollections {
+            let propertyName = collection.enumName.lowercasedFirst()
 
-        // コレクションプロパティがあれば追加
-        if !collectionProperties.isEmpty {
-            let properties: DeclSyntax = "\(raw: collectionProperties)"
-            result.append(properties)
+            if collection.subCollections.isEmpty {
+                // サブコレクションなし → 汎用FirestoreCollectionを使用
+                result.append("""
+                    public var \(raw: propertyName): FirestoreCollection<\(raw: collection.modelType)> {
+                        FirestoreCollection(collectionId: \(raw: collection.enumName).collectionId, database: database, client: client)
+                    }
+                    """)
+            } else {
+                // サブコレクションあり → 専用Collection型を使用
+                let collectionTypeName = "\(collection.enumName)Collection"
+                result.append("""
+                    public var \(raw: propertyName): \(raw: collectionTypeName) {
+                        \(raw: collectionTypeName)(database: database, client: client)
+                    }
+                    """)
+            }
+        }
+
+        // サブコレクションを持つコレクション用の専用型を生成
+        for collection in rootCollections where !collection.subCollections.isEmpty {
+            let generatedTypes = generateCollectionTypes(for: collection, parentPath: nil)
+            for typeDecl in generatedTypes {
+                result.append(typeDecl)
+            }
         }
 
         return result
@@ -113,42 +111,298 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         return [ext.cast(ExtensionDeclSyntax.self)]
     }
 
-    // MARK: - Helpers
+    // MARK: - Collection Type Generation
 
-    private struct CollectionInfo {
+    /// サブコレクションを持つコレクション用の専用Collection型とDocument型を生成
+    private static func generateCollectionTypes(
+        for collection: CollectionNode,
+        parentPath: String?
+    ) -> [DeclSyntax] {
+        var result: [DeclSyntax] = []
+
+        let collectionTypeName = "\(collection.enumName)Collection"
+        let documentTypeName = "\(collection.enumName)Document"
+
+        // parentPath計算用のコード生成
+        let parentPathExpr: String
+        if let parentPath = parentPath {
+            parentPathExpr = "\"\(parentPath)/\\(parentDocumentId)\""
+        } else {
+            parentPathExpr = "nil"
+        }
+
+        let parentPathProperty: String
+        let initParams: String
+        let initAssignments: String
+        let documentInitCall: String
+
+        if parentPath != nil {
+            parentPathProperty = "public var parentPath: String? { \(parentPathExpr) }"
+            initParams = "database: DatabasePath, client: FirestoreClient, parentDocumentId: String"
+            initAssignments = """
+                self.database = database
+                        self.client = client
+                        self.parentDocumentId = parentDocumentId
+                """
+            documentInitCall = "\(documentTypeName)(documentId: documentId, database: database, client: client, parentPath: parentPath ?? \"\(collection.collectionId)\")"
+        } else {
+            parentPathProperty = "public var parentPath: String? { nil }"
+            initParams = "database: DatabasePath, client: FirestoreClient"
+            initAssignments = """
+                self.database = database
+                        self.client = client
+                """
+            documentInitCall = "\(documentTypeName)(documentId: documentId, database: database, client: client, parentPath: \"\(collection.collectionId)\")"
+        }
+
+        let parentDocumentIdProperty = parentPath != nil ? "public let parentDocumentId: String" : ""
+
+        // Collection型を生成
+        result.append("""
+            public struct \(raw: collectionTypeName): FirestoreCollectionProtocol {
+                public typealias Model = \(raw: collection.modelType)
+                public typealias Document = \(raw: documentTypeName)
+
+                public static var collectionId: String { \(raw: collection.enumName).collectionId }
+                public let database: DatabasePath
+                public let client: FirestoreClient
+                \(raw: parentDocumentIdProperty)
+
+                \(raw: parentPathProperty)
+
+                public init(\(raw: initParams)) {
+                    \(raw: initAssignments)
+                }
+
+                public func document(_ documentId: String) -> \(raw: documentTypeName) {
+                    \(raw: documentInitCall)
+                }
+            }
+            """)
+
+        // Document型を生成（サブコレクションアクセサ付き）
+        let subCollectionAccessors = collection.subCollections.map { sub in
+            let accessorName = sub.enumName.lowercasedFirst()
+            let subCollectionId = sub.collectionId
+
+            if sub.subCollections.isEmpty {
+                // サブコレクションなし → 汎用FirestoreCollection
+                return """
+                    public var \(accessorName): FirestoreCollection<\(sub.modelType)> {
+                            FirestoreCollection(
+                                collectionId: "\(subCollectionId)",
+                                database: database,
+                                client: client,
+                                parentPath: "\\(parentPath)/\\(documentId)"
+                            )
+                        }
+                    """
+            } else {
+                // さらにサブコレクションあり → 専用Collection型
+                let subCollectionTypeName = "\(sub.enumName)Collection"
+                return """
+                    public var \(accessorName): \(subCollectionTypeName) {
+                            \(subCollectionTypeName)(
+                                database: database,
+                                client: client,
+                                parentDocumentId: documentId,
+                                grandParentPath: parentPath
+                            )
+                        }
+                    """
+            }
+        }.joined(separator: "\n\n")
+
+        result.append("""
+            public struct \(raw: documentTypeName): FirestoreDocumentProtocol {
+                public typealias Model = \(raw: collection.modelType)
+
+                public let documentId: String
+                public let database: DatabasePath
+                public let client: FirestoreClient
+                public let parentPath: String
+
+                public var collectionPath: String { parentPath }
+
+                public init(documentId: String, database: DatabasePath, client: FirestoreClient, parentPath: String) {
+                    self.documentId = documentId
+                    self.database = database
+                    self.client = client
+                    self.parentPath = parentPath
+                }
+
+                // MARK: - Sub-collections
+
+                \(raw: subCollectionAccessors)
+            }
+            """)
+
+        // ネストされたサブコレクションに対しても再帰的に型を生成
+        for sub in collection.subCollections where !sub.subCollections.isEmpty {
+            let subParentPath = collection.collectionId
+            let nestedTypes = generateNestedCollectionTypes(
+                for: sub,
+                ancestorCollectionId: subParentPath
+            )
+            result.append(contentsOf: nestedTypes)
+        }
+
+        return result
+    }
+
+    /// 2階層以上ネストされたサブコレクション用の型を生成
+    private static func generateNestedCollectionTypes(
+        for collection: CollectionNode,
+        ancestorCollectionId: String
+    ) -> [DeclSyntax] {
+        var result: [DeclSyntax] = []
+
+        let collectionTypeName = "\(collection.enumName)Collection"
+        let documentTypeName = "\(collection.enumName)Document"
+
+        // Collection型（parentDocumentIdとgrandParentPathを持つ）
+        result.append("""
+            public struct \(raw: collectionTypeName): FirestoreCollectionProtocol {
+                public typealias Model = \(raw: collection.modelType)
+                public typealias Document = \(raw: documentTypeName)
+
+                public static var collectionId: String { "\(raw: collection.collectionId)" }
+                public let database: DatabasePath
+                public let client: FirestoreClient
+                public let parentDocumentId: String
+                public let grandParentPath: String
+
+                public var parentPath: String? { "\\(grandParentPath)/\\(parentDocumentId)" }
+
+                public init(database: DatabasePath, client: FirestoreClient, parentDocumentId: String, grandParentPath: String) {
+                    self.database = database
+                    self.client = client
+                    self.parentDocumentId = parentDocumentId
+                    self.grandParentPath = grandParentPath
+                }
+
+                public func document(_ documentId: String) -> \(raw: documentTypeName) {
+                    \(raw: documentTypeName)(
+                        documentId: documentId,
+                        database: database,
+                        client: client,
+                        parentPath: "\\(grandParentPath)/\\(parentDocumentId)/\(raw: collection.collectionId)"
+                    )
+                }
+            }
+            """)
+
+        // Document型
+        let subCollectionAccessors = collection.subCollections.map { sub in
+            let accessorName = sub.enumName.lowercasedFirst()
+            return """
+                public var \(accessorName): FirestoreCollection<\(sub.modelType)> {
+                        FirestoreCollection(
+                            collectionId: "\(sub.collectionId)",
+                            database: database,
+                            client: client,
+                            parentPath: "\\(parentPath)/\\(documentId)"
+                        )
+                    }
+                """
+        }.joined(separator: "\n\n")
+
+        result.append("""
+            public struct \(raw: documentTypeName): FirestoreDocumentProtocol {
+                public typealias Model = \(raw: collection.modelType)
+
+                public let documentId: String
+                public let database: DatabasePath
+                public let client: FirestoreClient
+                public let parentPath: String
+
+                public var collectionPath: String { parentPath }
+
+                public init(documentId: String, database: DatabasePath, client: FirestoreClient, parentPath: String) {
+                    self.documentId = documentId
+                    self.database = database
+                    self.client = client
+                    self.parentPath = parentPath
+                }
+
+                \(raw: subCollectionAccessors.isEmpty ? "// No sub-collections" : "// MARK: - Sub-collections\n\n\(subCollectionAccessors)")
+            }
+            """)
+
+        return result
+    }
+
+    // MARK: - Collection Parsing
+
+    /// コレクション構造を表すノード
+    private struct CollectionNode {
         let enumName: String
         let collectionId: String
         let modelType: String
+        var subCollections: [CollectionNode]
     }
 
-    private static func findCollectionEnums(in structDecl: StructDeclSyntax) -> [CollectionInfo] {
-        var collections: [CollectionInfo] = []
+    /// structから再帰的にコレクション構造をパース
+    private static func parseCollections(in structDecl: StructDeclSyntax) -> [CollectionNode] {
+        var collections: [CollectionNode] = []
 
         for member in structDecl.memberBlock.members {
             guard let nestedEnum = member.decl.as(EnumDeclSyntax.self) else {
                 continue
             }
 
-            // @Collectionアトリビュートを探す
-            for attribute in nestedEnum.attributes {
-                guard let attr = attribute.as(AttributeSyntax.self),
-                      let identifier = attr.attributeName.as(IdentifierTypeSyntax.self),
-                      identifier.name.text == "Collection",
-                      let args = extractCollectionArguments(from: attr) else {
-                    continue
-                }
-
-                collections.append(CollectionInfo(
-                    enumName: nestedEnum.name.text,
-                    collectionId: args.collectionId,
-                    modelType: args.modelType
-                ))
+            if let node = parseCollectionEnum(nestedEnum) {
+                collections.append(node)
             }
         }
 
         return collections
     }
 
+    /// enumから再帰的にコレクションノードをパース
+    private static func parseCollectionEnum(_ enumDecl: EnumDeclSyntax) -> CollectionNode? {
+        // @Collectionアトリビュートを探す
+        var collectionId: String?
+        var modelType: String?
+
+        for attribute in enumDecl.attributes {
+            guard let attr = attribute.as(AttributeSyntax.self),
+                  let identifier = attr.attributeName.as(IdentifierTypeSyntax.self),
+                  identifier.name.text == "Collection",
+                  let args = extractCollectionArguments(from: attr) else {
+                continue
+            }
+
+            collectionId = args.collectionId
+            modelType = args.modelType
+            break
+        }
+
+        guard let cid = collectionId, let mt = modelType else {
+            return nil
+        }
+
+        // サブコレクションを再帰的にパース
+        var subCollections: [CollectionNode] = []
+        for member in enumDecl.memberBlock.members {
+            guard let nestedEnum = member.decl.as(EnumDeclSyntax.self) else {
+                continue
+            }
+
+            if let subNode = parseCollectionEnum(nestedEnum) {
+                subCollections.append(subNode)
+            }
+        }
+
+        return CollectionNode(
+            enumName: enumDecl.name.text,
+            collectionId: cid,
+            modelType: mt,
+            subCollections: subCollections
+        )
+    }
+
+    /// @Collection属性から引数を抽出
     private static func extractCollectionArguments(from attr: AttributeSyntax) -> (collectionId: String, modelType: String)? {
         guard let arguments = attr.arguments?.as(LabeledExprListSyntax.self) else {
             return nil

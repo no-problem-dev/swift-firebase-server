@@ -1,5 +1,15 @@
 import Foundation
 
+// MARK: - FieldPath
+
+public struct FieldPath<Model>: Sendable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+
 // MARK: - Query Protocol
 
 /// Firestoreクエリを構築するためのプロトコル
@@ -81,70 +91,57 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// フィールドが値と等しい条件を追加
-    public func whereField(_ fieldPath: String, isEqualTo value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isEqualTo(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isEqualTo value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isEqualTo(field.rawValue, value))
     }
 
-    /// フィールドが値と等しくない条件を追加
-    public func whereField(_ fieldPath: String, isNotEqualTo value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isNotEqualTo(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isNotEqualTo value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isNotEqualTo(field.rawValue, value))
     }
 
-    /// フィールドが値より小さい条件を追加
-    public func whereField(_ fieldPath: String, isLessThan value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isLessThan(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isLessThan value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isLessThan(field.rawValue, value))
     }
 
-    /// フィールドが値以下の条件を追加
-    public func whereField(_ fieldPath: String, isLessThanOrEqualTo value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isLessThanOrEqual(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isLessThanOrEqualTo value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isLessThanOrEqual(field.rawValue, value))
     }
 
-    /// フィールドが値より大きい条件を追加
-    public func whereField(_ fieldPath: String, isGreaterThan value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isGreaterThan(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isGreaterThan value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isGreaterThan(field.rawValue, value))
     }
 
-    /// フィールドが値以上の条件を追加
-    public func whereField(_ fieldPath: String, isGreaterThanOrEqualTo value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.isGreaterThanOrEqual(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, isGreaterThanOrEqualTo value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.isGreaterThanOrEqual(field.rawValue, value))
     }
 
-    /// 配列フィールドが値を含む条件を追加
-    public func whereField(_ fieldPath: String, arrayContains value: FirestoreValue) -> Query<T> {
-        self.where(FieldFilter.arrayContains(fieldPath, value))
+    public func whereField(_ field: FieldPath<T>, arrayContains value: FirestoreValue) -> Query<T> {
+        self.where(FieldFilter.arrayContains(field.rawValue, value))
     }
 
-    /// フィールドが配列内のいずれかの値と等しい条件を追加
-    public func whereField(_ fieldPath: String, in values: [FirestoreValue]) -> Query<T> {
-        self.where(FieldFilter.isIn(fieldPath, values))
+    public func whereField(_ field: FieldPath<T>, in values: [FirestoreValue]) -> Query<T> {
+        self.where(FieldFilter.isIn(field.rawValue, values))
     }
 
-    /// 配列フィールドが配列内のいずれかの値を含む条件を追加
-    public func whereField(_ fieldPath: String, arrayContainsAny values: [FirestoreValue]) -> Query<T> {
-        self.where(FieldFilter.arrayContainsAny(fieldPath, values))
+    public func whereField(_ field: FieldPath<T>, arrayContainsAny values: [FirestoreValue]) -> Query<T> {
+        self.where(FieldFilter.arrayContainsAny(field.rawValue, values))
     }
 
-    /// フィールドが配列内のいずれの値とも等しくない条件を追加
-    public func whereField(_ fieldPath: String, notIn values: [FirestoreValue]) -> Query<T> {
-        self.where(FieldFilter.isNotIn(fieldPath, values))
+    public func whereField(_ field: FieldPath<T>, notIn values: [FirestoreValue]) -> Query<T> {
+        self.where(FieldFilter.isNotIn(field.rawValue, values))
     }
 
-    /// フィルター条件を組み合わせる（AND）
     public func whereAnd(_ filters: any QueryFilterProtocol...) -> Query<T> {
         self.where(CompositeFilter.and(filters))
     }
 
-    /// フィルター条件を組み合わせる（OR）
     public func whereOr(_ filters: any QueryFilterProtocol...) -> Query<T> {
         self.where(CompositeFilter.or(filters))
     }
 
-    /// ソート順を追加
-    public func order(by fieldPath: String, direction: SortDirection = .ascending) -> Query<T> {
+    public func order(by field: FieldPath<T>, direction: SortDirection = .ascending) -> Query<T> {
         var newOrderBy = orderByClause
-        newOrderBy.append(QueryOrder(fieldPath, direction: direction))
+        newOrderBy.append(QueryOrder(field.rawValue, direction: direction))
         return Query(
             collection: collection,
             collectionSelectors: collectionSelectors,
@@ -158,17 +155,14 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 昇順ソートを追加
-    public func orderAscending(by fieldPath: String) -> Query<T> {
-        order(by: fieldPath, direction: .ascending)
+    public func orderAscending(by field: FieldPath<T>) -> Query<T> {
+        order(by: field, direction: .ascending)
     }
 
-    /// 降順ソートを追加
-    public func orderDescending(by fieldPath: String) -> Query<T> {
-        order(by: fieldPath, direction: .descending)
+    public func orderDescending(by field: FieldPath<T>) -> Query<T> {
+        order(by: field, direction: .descending)
     }
 
-    /// 取得件数を制限
     public func limit(to count: Int) -> Query<T> {
         Query(
             collection: collection,
@@ -183,7 +177,6 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 開始位置をオフセット
     public func offset(_ count: Int) -> Query<T> {
         Query(
             collection: collection,
@@ -198,7 +191,6 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 開始カーソルを設定
     public func start(at values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
@@ -213,7 +205,6 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 開始カーソルを設定（指定値の直後から）
     public func start(after values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
@@ -228,7 +219,6 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 終了カーソルを設定
     public func end(at values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
@@ -243,7 +233,6 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 終了カーソルを設定（指定値の直前まで）
     public func end(before values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
@@ -258,8 +247,7 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
-    /// 取得するフィールドを制限
-    public func select(_ fieldPaths: String...) -> Query<T> {
+    public func select(_ fields: FieldPath<T>...) -> Query<T> {
         Query(
             collection: collection,
             collectionSelectors: collectionSelectors,
@@ -269,11 +257,10 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
             endAt: endAtCursor,
             limit: limitCount,
             offset: offsetCount,
-            projection: QueryProjection(fieldPaths: Array(fieldPaths))
+            projection: QueryProjection(fieldPaths: fields.map(\.rawValue))
         )
     }
 
-    /// サブコレクションも含めてクエリ（コレクショングループクエリ）
     public func collectionGroup() -> Query<T> {
         Query(
             collection: collection,
