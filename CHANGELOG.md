@@ -9,6 +9,33 @@
 
 なし
 
+## [1.0.12] - 2026-01-09
+
+### 追加
+
+- **型安全な FieldPath API** - Query API でのフィールド参照を型安全に
+  - `FieldPath<Model>` - ジェネリック構造体でモデルとフィールドを紐付け
+  - `@FirestoreModel` マクロが `Fields` enum を自動生成
+  - `order(by:)`, `whereField()`, `select()` が `FieldPath<T>` を受け付け
+  - コンパイル時にフィールド名の誤りを検出可能
+
+### 変更
+
+- **Query API シグネチャ変更** - String から FieldPath<T> に変更
+  - `order(by field: FieldPath<T>, direction:)`
+  - `whereField(_ field: FieldPath<T>, isEqualTo:)` 等
+
+### 破壊的変更
+
+- Query メソッドのフィールド指定が `String` から `Model.Fields.fieldName` 形式に変更
+  ```swift
+  // Before
+  .order(by: "updated_at", direction: .descending)
+
+  // After
+  .order(by: FirestoreBook.Fields.updatedAt, direction: .descending)
+  ```
+
 ## [1.0.11] - 2026-01-07
 
 ### 修正
@@ -287,7 +314,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...HEAD
+[1.0.12]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...v1.0.12
 [1.0.11]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.8...v1.0.9
@@ -320,3 +348,5 @@ import FirebaseAuthServer
 <!-- Auto-generated on 2026-01-02T04:47:00Z by release workflow -->
 
 <!-- Auto-generated on 2026-01-02T07:31:27Z by release workflow -->
+
+<!-- Auto-generated on 2026-01-06T23:11:12Z by release workflow -->

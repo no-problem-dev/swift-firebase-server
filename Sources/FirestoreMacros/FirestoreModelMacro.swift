@@ -3,11 +3,6 @@ import SwiftSyntaxMacros
 
 // MARK: - FirestoreModelMacro
 
-/// `@FirestoreModel`マクロの実装
-///
-/// このマクロは構造体に付与され、以下を生成します:
-/// - `CodingKeys` enum（@Field, @FieldIgnore, keyStrategyに基づく）
-/// - `Codable`, `Sendable` プロトコル準拠
 public struct FirestoreModelMacro {}
 
 // MARK: - MemberMacro
@@ -30,6 +25,8 @@ extension FirestoreModelMacro: MemberMacro {
         // プロパティ情報を収集
         let properties = collectProperties(from: structDecl, defaultStrategy: keyStrategy)
 
+        var declarations: [DeclSyntax] = []
+
         // CodingKeysを生成する必要があるか確認
         // - カスタムキーがある
         // - keyStrategyがsnakeCaseである
@@ -38,15 +35,39 @@ extension FirestoreModelMacro: MemberMacro {
             prop.customKey != nil || prop.strategy == .snakeCase || prop.isIgnored
         }
 
-        guard needsCodingKeys else {
-            // CodingKeys不要（全てデフォルト）
-            return []
+        if needsCodingKeys {
+            let codingKeysDecl = generateCodingKeys(properties: properties)
+            declarations.append(codingKeysDecl)
         }
 
-        // CodingKeysを生成
-        let codingKeysDecl = generateCodingKeys(properties: properties)
+        let fieldsDecl = generateFieldsEnum(typeName: structDecl.name.text, properties: properties)
+        declarations.append(fieldsDecl)
 
-        return [codingKeysDecl]
+        return declarations
+    }
+
+    private static func generateFieldsEnum(typeName: String, properties: [PropertyInfo]) -> DeclSyntax {
+        var fieldDeclarations: [String] = []
+
+        for prop in properties {
+            if prop.isIgnored {
+                continue
+            }
+
+            let propertyName = prop.name
+            let firestoreKey = prop.effectiveKey
+
+            fieldDeclarations.append("static let \(propertyName) = FieldPath<\(typeName)>(\"\(firestoreKey)\")")
+        }
+
+        let fieldsBody = fieldDeclarations.joined(separator: "\n    ")
+
+        return DeclSyntax(stringLiteral: """
+            enum Fields {
+                \(fieldsBody)
+            }
+            """
+        )
     }
 
     // MARK: - Private Helpers
@@ -197,6 +218,7 @@ extension FirestoreModelMacro: MemberMacro {
             """
         )
     }
+
 }
 
 // MARK: - ExtensionMacro

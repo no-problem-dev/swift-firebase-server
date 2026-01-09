@@ -323,7 +323,7 @@ struct FilterBuilderTests {
                     Field("price") <= 1000.0
                 }
             }
-            .orderDescending(by: "price")
+            .orderDescending(by: FieldPath("price"))
             .limit(to: 10)
 
         let structuredQuery = query.buildStructuredQuery()

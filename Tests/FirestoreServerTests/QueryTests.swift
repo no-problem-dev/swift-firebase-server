@@ -160,7 +160,7 @@ struct QueryTests {
         struct User: Codable { let name: String }
 
         let query = collection.query(as: User.self)
-            .whereField("status", isEqualTo: .string("active"))
+            .whereField(FieldPath("status"), isEqualTo: .string("active"))
 
         let structuredQuery = query.buildStructuredQuery()
 
@@ -179,7 +179,7 @@ struct QueryTests {
         struct Post: Codable { let title: String }
 
         let query = collection.query(as: Post.self)
-            .orderDescending(by: "createdAt")
+            .orderDescending(by: FieldPath("createdAt"))
 
         let structuredQuery = query.buildStructuredQuery()
 
@@ -220,8 +220,8 @@ struct QueryTests {
         }
 
         let query = collection.query(as: Product.self)
-            .whereField("category", isEqualTo: .string("electronics"))
-            .orderDescending(by: "price")
+            .whereField(FieldPath("category"), isEqualTo: .string("electronics"))
+            .orderDescending(by: FieldPath("price"))
             .limit(to: 20)
 
         let structuredQuery = query.buildStructuredQuery()
@@ -255,7 +255,7 @@ struct QueryTests {
         struct User: Codable { let name: String }
 
         let query = collection.query(as: User.self)
-            .select("name", "email")
+            .select(FieldPath("name"), FieldPath("email"))
 
         let structuredQuery = query.buildStructuredQuery()
 
@@ -272,7 +272,7 @@ struct QueryTests {
         struct Log: Codable { let message: String }
 
         let query = collection.query(as: Log.self)
-            .orderDescending(by: "timestamp")
+            .orderDescending(by: FieldPath("timestamp"))
             .start(at: .integer(1000))
             .end(at: .integer(2000))
 
