@@ -103,11 +103,15 @@ public final class StorageClient: Sendable {
             )
         }
 
-        guard
-            let json = try JSONSerialization.jsonObject(with: body.toData()) as? [String: Any],
-            let storageObject = StorageObject.fromJSON(json)
-        else {
-            throw StorageError.invalidArgument(message: "Invalid response from server")
+        let bodyData = body.toData()
+        guard let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] else {
+            let bodyString = String(data: bodyData, encoding: .utf8) ?? "Unable to decode body"
+            throw StorageError.invalidArgument(message: "Invalid JSON response from server. Body: \(bodyString)")
+        }
+
+        guard let storageObject = StorageObject.fromJSON(json) else {
+            let jsonString = String(data: bodyData, encoding: .utf8) ?? "Unable to decode JSON"
+            throw StorageError.invalidArgument(message: "Failed to parse StorageObject from JSON. JSON: \(jsonString)")
         }
 
         return storageObject
