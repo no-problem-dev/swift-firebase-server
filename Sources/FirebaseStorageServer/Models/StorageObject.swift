@@ -58,11 +58,23 @@ extension StorageObject {
     /// REST APIレスポンスからStorageObjectを生成
     static func fromJSON(_ json: [String: Any]) -> StorageObject? {
         guard
-            let id = json["id"] as? String,
             let name = json["name"] as? String,
             let bucket = json["bucket"] as? String
         else {
             return nil
+        }
+
+        // idフィールドがない場合（エミュレーター）、generationから生成
+        let id: String
+        if let explicitId = json["id"] as? String {
+            id = explicitId
+        } else if let generation = json["generation"] as? String {
+            id = "\(bucket)/\(name)#\(generation)"
+        } else if let generationInt = json["generation"] as? Int64 {
+            id = "\(bucket)/\(name)#\(generationInt)"
+        } else {
+            // どちらもない場合はnameをidとして使用
+            id = "\(bucket)/\(name)"
         }
 
         let size: Int64
@@ -70,6 +82,8 @@ extension StorageObject {
             size = Int64(sizeString) ?? 0
         } else if let sizeInt = json["size"] as? Int64 {
             size = sizeInt
+        } else if let sizeInt = json["size"] as? Int {
+            size = Int64(sizeInt)
         } else {
             size = 0
         }
