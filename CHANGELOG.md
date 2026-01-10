@@ -9,6 +9,16 @@
 
 なし
 
+## [1.0.13] - 2026-01-11
+
+### 修正
+
+- **Firebase Storage Emulator 対応** - エミュレーター環境でのファイルアップロードをサポート
+  - `StorageObject.fromJSON()` で `id` フィールドがない場合のフォールバック処理を追加
+  - エミュレーターが返す `generation` フィールドから `id` を生成
+  - `size` フィールドの文字列/整数両方の形式に対応
+  - エラーメッセージに実際のレスポンス内容を含めるよう改善
+
 ## [1.0.12] - 2026-01-09
 
 ### 追加
@@ -314,7 +324,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...HEAD
+[1.0.13]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...v1.0.13
 [1.0.12]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...v1.0.12
 [1.0.11]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.9...v1.0.10
