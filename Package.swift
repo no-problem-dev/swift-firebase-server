@@ -46,6 +46,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", .upToNextMajor(from: "602.0.0")),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", .upToNextMajor(from: "1.4.0")),
         .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMajor(from: "4.0.0")),
+        .package(url: "https://github.com/apple/swift-protobuf.git", .upToNextMajor(from: "1.33.0")),
     ],
     targets: [
         // Internal shared module (not exposed as a product)
@@ -127,7 +128,9 @@ let package = Package(
         // Eventarc event types (CloudEvents)
         .target(
             name: "EventarcServer",
-            dependencies: []
+            dependencies: [
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            ]
         ),
 
         // Tests
