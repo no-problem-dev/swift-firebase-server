@@ -9,6 +9,14 @@
 
 なし
 
+## [1.0.17] - 2026-01-17
+
+### 修正
+
+- **Linux互換性**: `AuthAdminClient` に `FoundationNetworking` インポートを追加
+  - Linux環境で `URLRequest` と `URLSession.shared` が利用可能に
+  - Cloud Run (Linux) でのビルドエラーを解消
+
 ## [1.0.16] - 2026-01-17
 
 ### 追加
@@ -421,7 +429,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.16...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.17...HEAD
+[1.0.17]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.16...v1.0.17
 [1.0.16]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...v1.0.14
