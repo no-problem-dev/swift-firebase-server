@@ -99,26 +99,26 @@ public final class AuthAdminClient: Sendable {
     /// - ユーザーが存在しない場合もエラーにはならない（冪等性）
     /// - Firestore や Storage のデータは別途削除が必要
     public func deleteUser(uid: String) async throws {
-        let url = try buildDeleteUserURL(uid: uid)
+        let url = try buildDeleteUserURL()
         let token = try await getAccessToken()
 
-        try await executeDelete(url: url, token: token)
+        try await executeDelete(url: url, token: token, uid: uid)
     }
 
     // MARK: - Private Methods
 
     /// 削除用URLを構築
-    private func buildDeleteUserURL(uid: String) throws -> URL {
+    private func buildDeleteUserURL() throws -> URL {
         let baseURL: String
         if let emulator = emulatorConfig {
-            // エミュレーター: http://{host}:{port}/identitytoolkit.googleapis.com/v1/projects/{projectId}/accounts/{uid}
+            // エミュレーター: http://{host}:{port}/identitytoolkit.googleapis.com/v1/accounts:delete
             baseURL = "http://\(emulator.host):\(emulator.port)/identitytoolkit.googleapis.com/v1"
         } else {
             // 本番: https://identitytoolkit.googleapis.com/v1
             baseURL = "https://identitytoolkit.googleapis.com/v1"
         }
 
-        let urlString = "\(baseURL)/projects/\(projectId)/accounts/\(uid)"
+        let urlString = "\(baseURL)/accounts:delete"
         guard let url = URL(string: urlString) else {
             throw AuthError.deleteUserFailed(reason: "Invalid URL: \(urlString)")
         }
@@ -135,12 +135,16 @@ public final class AuthAdminClient: Sendable {
         return try await GCPEnvironment.shared.getAccessToken()
     }
 
-    /// DELETE リクエストを実行
-    private func executeDelete(url: URL, token: String) async throws {
+    /// DELETE リクエストを実行（POST accounts:delete）
+    private func executeDelete(url: URL, token: String, uid: String) async throws {
         var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
+        request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Firebase Auth Identity Toolkit API は localId でユーザーを指定
+        let body: [String: Any] = ["localId": uid]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -148,17 +152,25 @@ public final class AuthAdminClient: Sendable {
             throw AuthError.deleteUserFailed(reason: "Invalid response type")
         }
 
-        // 成功: 200, 204, または 404（既に削除済み）
+        // 成功: 200
         switch httpResponse.statusCode {
-        case 200, 204:
+        case 200:
             return // 成功
 
-        case 404:
-            // ユーザーが存在しない場合も成功とみなす（冪等性）
-            return
-
         default:
-            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            // エラーレスポンスを解析
+            let message: String
+            if let errorResponse = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = errorResponse["error"] as? [String: Any],
+               let errorMessage = error["message"] as? String {
+                // USER_NOT_FOUND の場合は成功とみなす（冪等性）
+                if errorMessage == "USER_NOT_FOUND" {
+                    return
+                }
+                message = errorMessage
+            } else {
+                message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            }
             throw AuthError.adminAPIFailed(
                 statusCode: httpResponse.statusCode,
                 message: message
