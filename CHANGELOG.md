@@ -9,6 +9,21 @@
 
 なし
 
+## [1.0.14] - 2026-01-17
+
+### 追加
+
+- **AuthAdminClient** - Firebase Auth Admin API によるユーザー削除機能
+  - `deleteUser(uid:)` - 指定されたユーザーをFirebase Authから削除
+  - Firebase Emulator 対応
+  - 冪等性対応（存在しないユーザーでもエラーにならない）
+
+### 修正
+
+- **AuthAdminClient** - 正しい Firebase Auth REST API エンドポイントを使用
+  - `DELETE /accounts/{uid}` → `POST /accounts:delete` に修正
+  - リクエストボディに `{ "localId": uid }` を含める形式に対応
+
 ## [1.0.13] - 2026-01-11
 
 ### 修正
@@ -324,7 +339,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...HEAD
+[1.0.14]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...v1.0.14
 [1.0.13]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...v1.0.13
 [1.0.12]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...v1.0.12
 [1.0.11]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.10...v1.0.11
