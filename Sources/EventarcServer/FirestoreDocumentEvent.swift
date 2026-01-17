@@ -35,6 +35,18 @@ public struct FirestoreDocumentEvent: Codable, Sendable {
     public struct UpdateMask: Codable, Sendable {
         /// 変更されたフィールドのパス
         public let fieldPaths: [String]?
+
+        /// 直接初期化用イニシャライザ
+        public init(fieldPaths: [String]?) {
+            self.fieldPaths = fieldPaths
+        }
+    }
+
+    /// 直接初期化用イニシャライザ
+    public init(value: FirestoreDocument?, oldValue: FirestoreDocument?, updateMask: UpdateMask?) {
+        self.value = value
+        self.oldValue = oldValue
+        self.updateMask = updateMask
     }
 }
 
@@ -56,6 +68,19 @@ public struct FirestoreDocument: Codable, Sendable {
 
     /// 更新日時
     public let updateTime: String?
+
+    /// 直接初期化用イニシャライザ
+    public init(
+        name: String?,
+        fields: [String: FirestoreValue]?,
+        createTime: String?,
+        updateTime: String?
+    ) {
+        self.name = name
+        self.fields = fields
+        self.createTime = createTime
+        self.updateTime = updateTime
+    }
 
     /// ドキュメントIDを取得
     public var documentId: String? {
@@ -142,17 +167,215 @@ public struct FirestoreValue: Codable, Sendable {
     /// マップ値
     public struct MapValue: Codable, Sendable {
         public let fields: [String: FirestoreValue]?
+
+        /// 直接初期化用イニシャライザ
+        public init(fields: [String: FirestoreValue]?) {
+            self.fields = fields
+        }
     }
 
     /// 配列値
     public struct ArrayValue: Codable, Sendable {
         public let values: [FirestoreValue]?
+
+        /// 直接初期化用イニシャライザ
+        public init(values: [FirestoreValue]?) {
+            self.values = values
+        }
     }
 
     /// GeoPoint値
     public struct GeoPointValue: Codable, Sendable {
         public let latitude: Double?
         public let longitude: Double?
+
+        /// 直接初期化用イニシャライザ
+        public init(latitude: Double?, longitude: Double?) {
+            self.latitude = latitude
+            self.longitude = longitude
+        }
+    }
+
+    // MARK: - Initializers
+
+    /// 空の値で初期化
+    public init() {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// 文字列値で初期化
+    public init(stringValue: String) {
+        self.stringValue = stringValue
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// 整数値で初期化
+    public init(integerValue: String) {
+        self.stringValue = nil
+        self.integerValue = integerValue
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// ブール値で初期化
+    public init(booleanValue: Bool) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = booleanValue
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// ダブル値で初期化
+    public init(doubleValue: Double) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = doubleValue
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// タイムスタンプ値で初期化
+    public init(timestampValue: String) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = timestampValue
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// null値で初期化
+    public init(nullValue: String) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nullValue
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// マップ値で初期化
+    public init(mapValue: MapValue) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = mapValue
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// 配列値で初期化
+    public init(arrayValue: ArrayValue) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = arrayValue
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// 参照値で初期化
+    public init(referenceValue: String) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = referenceValue
+        self.geoPointValue = nil
+        self.bytesValue = nil
+    }
+
+    /// GeoPoint値で初期化
+    public init(geoPointValue: GeoPointValue) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = geoPointValue
+        self.bytesValue = nil
+    }
+
+    /// バイト値で初期化
+    public init(bytesValue: String) {
+        self.stringValue = nil
+        self.integerValue = nil
+        self.booleanValue = nil
+        self.doubleValue = nil
+        self.timestampValue = nil
+        self.nullValue = nil
+        self.mapValue = nil
+        self.arrayValue = nil
+        self.referenceValue = nil
+        self.geoPointValue = nil
+        self.bytesValue = bytesValue
     }
 }
 
