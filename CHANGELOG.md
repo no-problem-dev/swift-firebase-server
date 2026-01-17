@@ -9,6 +9,43 @@
 
 なし
 
+## [1.0.15] - 2026-01-17
+
+### 追加
+
+- **EventarcServer モジュール**: Google Cloud Eventarc イベント（CloudEvents形式）のハンドリング
+  - `CloudEventHeaders`: CloudEvents HTTP ヘッダーのパース
+    - `ce-type`, `ce-source`, `ce-id`, `ce-time`, `ce-subject`, `ce-specversion` に対応
+  - `AuthUserCreatedEvent`: Firebase Auth ユーザー作成イベントペイロード
+    - `uid`, `email`, `displayName`, `metadata` 等のフィールド
+  - `FirestoreDocumentEvent`: Firestore ドキュメントイベント
+    - ドキュメント作成・更新イベントに対応
+    - `value`（現在の値）と `oldValue`（更新前の値）をサポート
+    - `extractPathParams(pattern:)` によるパスパラメータ抽出
+
+### イベントタイプ定数
+
+```swift
+CloudEventHeaders.AuthEventType.userCreated
+// → "google.firebase.auth.user.v1.created"
+
+CloudEventHeaders.FirestoreEventType.documentCreated
+// → "google.cloud.firestore.document.v1.created"
+
+CloudEventHeaders.FirestoreEventType.documentUpdated
+// → "google.cloud.firestore.document.v1.updated"
+```
+
+### パスパラメータ抽出
+
+```swift
+let event: FirestoreDocumentEvent = ...
+let params = event.extractPathParams(
+    pattern: "users/{userId}/books/{bookId}/chats/{chatId}"
+)
+// params["userId"], params["bookId"], params["chatId"]
+```
+
 ## [1.0.14] - 2026-01-17
 
 ### 追加
@@ -339,7 +376,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.15...HEAD
+[1.0.15]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...v1.0.14
 [1.0.13]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...v1.0.13
 [1.0.12]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.11...v1.0.12
@@ -381,3 +419,5 @@ import FirebaseAuthServer
 <!-- Auto-generated on 2026-01-09T11:34:16Z by release workflow -->
 
 <!-- Auto-generated on 2026-01-10T23:33:17Z by release workflow -->
+
+<!-- Auto-generated on 2026-01-17T10:56:40Z by release workflow -->
