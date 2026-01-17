@@ -86,4 +86,29 @@ public struct AuthUserCreatedEvent: Codable, Sendable {
         case metadata
         case providerData
     }
+
+    /// 初期化
+    ///
+    /// Cloud Audit Logsからの変換など、プログラムでインスタンスを作成する場合に使用します。
+    public init(
+        uid: String,
+        email: String? = nil,
+        emailVerified: Bool? = nil,
+        displayName: String? = nil,
+        photoURL: String? = nil,
+        phoneNumber: String? = nil,
+        disabled: Bool? = nil,
+        metadata: Metadata? = nil,
+        providerData: [ProviderInfo]? = nil
+    ) {
+        self.uid = uid
+        self.email = email
+        self.emailVerified = emailVerified
+        self.displayName = displayName
+        self.photoURL = photoURL
+        self.phoneNumber = phoneNumber
+        self.disabled = disabled
+        self.metadata = metadata
+        self.providerData = providerData
+    }
 }
