@@ -34,6 +34,11 @@ let package = Package(
             name: "FirebaseAuthServer",
             targets: ["FirebaseAuthServer"]
         ),
+        // Eventarc event types (CloudEvents)
+        .library(
+            name: "EventarcServer",
+            targets: ["EventarcServer"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.23.0")),
@@ -117,6 +122,12 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "_CryptoExtras", package: "swift-crypto"),
             ]
+        ),
+
+        // Eventarc event types (CloudEvents)
+        .target(
+            name: "EventarcServer",
+            dependencies: []
         ),
 
         // Tests
