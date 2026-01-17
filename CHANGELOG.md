@@ -9,6 +9,51 @@
 
 なし
 
+## [1.0.16] - 2026-01-17
+
+### 追加
+
+- **Cloud Audit Logs サポート**: Firebase Auth イベントを Cloud Audit Logs 経由で受信
+  - `CloudAuditLogEvent`: Cloud Audit Logs イベントペイロード型
+    - `isIdentityPlatformSignUp`: Identity Platform サインアップイベント判定
+    - `signedUpUserId`: サインアップしたユーザーID抽出
+    - `signedUpUserEmail`: サインアップしたユーザーメール抽出
+  - `CloudEventHeaders.AuditLogEventType`: Cloud Audit Logs イベントタイプ定数
+  - `CloudEventHeaders.IdentityPlatformService`: Identity Platform サービス定数
+
+- **Firestore Protobuf デコーダー**: Eventarc Firestore イベントの Protobuf 形式に対応
+  - `FirestoreProtobufDecoder`: Protobuf バイナリ → `FirestoreDocumentEvent` 変換
+  - google-cloudevents proto 定義を同梱
+  - `swift-protobuf` 依存関係を追加
+
+- **型の初期化改善**: プログラム的なインスタンス生成に対応
+  - `AuthUserCreatedEvent`: 公開イニシャライザを追加
+  - `FirestoreValue`: 各値型の公開イニシャライザを追加
+
+### 依存関係
+
+- `apple/swift-protobuf` 1.33.0+ を追加
+
+### 使用例
+
+```swift
+// Cloud Audit Logs（Auth）
+routes.webhook("user-created", body: CloudAuditLogEvent.self) { request in
+    guard request.body.isIdentityPlatformSignUp else { return .badRequest }
+    guard let userId = request.body.signedUpUserId else { return .badRequest }
+    print("New user: \(userId)")
+    return .ok
+}
+
+// Firestore Protobuf
+routes.webhookRaw("chat-created") { request in
+    let event = try FirestoreProtobufDecoder.decode(request.data)
+    let params = event.extractPathParams(pattern: "users/{userId}/books/{bookId}/chats/{chatId}")
+    print("Chat created: \(params)")
+    return .ok
+}
+```
+
 ## [1.0.15] - 2026-01-17
 
 ### 追加
@@ -376,7 +421,8 @@ import FirebaseAuthServer
 - リリースプロセスガイド
 - GitHub Actions による DocC 自動デプロイ
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.15...HEAD
+[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.16...HEAD
+[1.0.16]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.13...v1.0.14
 [1.0.13]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.12...v1.0.13
