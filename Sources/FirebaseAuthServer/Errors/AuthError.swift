@@ -52,6 +52,14 @@ public enum AuthError: Error, Sendable {
 
     /// ユーザーが見つからない（sub クレームが空）
     case userNotFound
+
+    // MARK: - Admin API Errors
+
+    /// ユーザー削除に失敗
+    case deleteUserFailed(reason: String)
+
+    /// Admin API リクエストに失敗
+    case adminAPIFailed(statusCode: Int, message: String)
 }
 
 // MARK: - CustomStringConvertible
@@ -95,6 +103,12 @@ extension AuthError: CustomStringConvertible {
 
         case .userNotFound:
             return "User ID (sub claim) is empty or missing"
+
+        case .deleteUserFailed(let reason):
+            return "Failed to delete user: \(reason)"
+
+        case .adminAPIFailed(let statusCode, let message):
+            return "Admin API request failed (status: \(statusCode)): \(message)"
         }
     }
 }
@@ -117,6 +131,8 @@ extension AuthError {
             return "AUTH_VERIFICATION_FAILED"
         case .userNotFound:
             return "AUTH_USER_NOT_FOUND"
+        case .deleteUserFailed, .adminAPIFailed:
+            return "AUTH_ADMIN_API_ERROR"
         }
     }
 }
