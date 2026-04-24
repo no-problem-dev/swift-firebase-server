@@ -17,6 +17,7 @@ extension FirestoreClient {
     /// クエリを実行してFirestoreDocumentを取得
     public func runQueryRaw<T>(_ query: Query<T>) async throws -> [FirestoreDocument] {
         let url = "\(configuration.baseURL)/\(query.collection.restParent):runQuery"
+        let currentToken = try await tokenSource.currentToken()
 
         let requestBody: [String: Any] = [
             "structuredQuery": query.buildStructuredQuery()
@@ -25,7 +26,7 @@ extension FirestoreClient {
 
         var request = HTTPClientRequest(url: url)
         request.method = .POST
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: "application/json")
         request.body = .bytes(ByteBuffer(data: bodyData))
 
