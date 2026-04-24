@@ -22,10 +22,11 @@ extension FirestoreClient {
     /// ドキュメントを取得（生のFirestoreDocument）
     public func getDocument(_ reference: DocumentReference) async throws -> FirestoreDocument {
         let url = "\(configuration.baseURL)/\(reference.restName)"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .GET
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: "application/json")
 
         let response = try await client.execute(request, timeout: .seconds(Int64(configuration.timeout)))
@@ -64,6 +65,7 @@ extension FirestoreClient {
         let documentId = reference.documentId
 
         let url = "\(configuration.baseURL)/\(parentCollection.restParent)/\(parentCollection.restCollectionId)?documentId=\(documentId)"
+        let currentToken = try await tokenSource.currentToken()
 
         var fieldsJSON: [String: Any] = [:]
         for (key, value) in fields {
@@ -74,7 +76,7 @@ extension FirestoreClient {
 
         var request = HTTPClientRequest(url: url)
         request.method = .POST
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: "application/json")
         request.body = .bytes(ByteBuffer(data: bodyData))
 
@@ -108,6 +110,7 @@ extension FirestoreClient {
         fields: [String: FirestoreValue]
     ) async throws {
         let url = "\(configuration.baseURL)/\(reference.restName)"
+        let currentToken = try await tokenSource.currentToken()
 
         var fieldsJSON: [String: Any] = [:]
         for (key, value) in fields {
@@ -118,7 +121,7 @@ extension FirestoreClient {
 
         var request = HTTPClientRequest(url: url)
         request.method = .PATCH
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: "application/json")
         request.body = .bytes(ByteBuffer(data: bodyData))
 
@@ -139,10 +142,11 @@ extension FirestoreClient {
     /// ドキュメントを削除
     public func deleteDocument(_ reference: DocumentReference) async throws {
         let url = "\(configuration.baseURL)/\(reference.restName)"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .DELETE
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
 
         let response = try await client.execute(request, timeout: .seconds(Int64(configuration.timeout)))
         let body = try await response.body.collect(upTo: 10 * 1024 * 1024)
@@ -186,10 +190,11 @@ extension FirestoreClient {
         if let pageToken {
             urlString += "&pageToken=\(pageToken)"
         }
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: urlString)
         request.method = .GET
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: "application/json")
 
         let response = try await client.execute(request, timeout: .seconds(Int64(configuration.timeout)))

@@ -29,8 +29,16 @@ public final class StorageClient: Sendable {
     /// 設定
     public let configuration: StorageConfiguration
 
-    /// 認証トークン
+    /// 認証トークン（初期化時の値）
+    ///
+    /// - Important: このプロパティは初期化時点のトークンであり、時間経過とともに失効する。
+    ///   Long-lived な Cloud Run インスタンスでは 1 時間後に 401 Unauthenticated を返すため、
+    ///   内部 API コールでは毎リクエスト `tokenSource.currentToken()` から最新を取得している。
+    /// - Note: 後方互換のために残されている。外部利用は非推奨。
     public let token: String
+
+    /// トークン取得戦略（リクエストごとに最新を取得するための分岐）
+    internal let tokenSource: TokenSource
 
     /// HTTPクライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
@@ -53,6 +61,7 @@ public final class StorageClient: Sendable {
             )
         }
         self.token = resolved.token
+        self.tokenSource = TokenSource(config: config, resolvedToken: resolved.token)
         self.httpClientProvider = HTTPClientProvider()
     }
 
@@ -64,9 +73,11 @@ public final class StorageClient: Sendable {
         case .emulator(let projectId):
             self.configuration = StorageConfiguration.emulator(projectId: projectId, bucket: bucket)
             self.token = "owner"
+            self.tokenSource = .emulator
         case .explicit(let projectId, let token):
             self.configuration = StorageConfiguration(projectId: projectId, bucket: bucket)
             self.token = token
+            self.tokenSource = .staticToken(token)
         }
         self.httpClientProvider = HTTPClientProvider()
     }
@@ -81,10 +92,11 @@ public final class StorageClient: Sendable {
     ) async throws -> StorageObject {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.uploadBaseURL)/b/\(configuration.bucket)/o?uploadType=media&name=\(encodedPath)"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .POST
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
         request.headers.add(name: "Content-Type", value: contentType)
         request.headers.add(name: "Content-Length", value: String(data.count))
         request.body = .bytes(ByteBuffer(data: data))
@@ -121,10 +133,11 @@ public final class StorageClient: Sendable {
     public func download(path: String) async throws -> Data {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)?alt=media"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .GET
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
 
         let response = try await httpClientProvider.client.execute(
             request,
@@ -147,10 +160,11 @@ public final class StorageClient: Sendable {
     public func delete(path: String) async throws {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .DELETE
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
 
         let response = try await httpClientProvider.client.execute(
             request,
@@ -188,10 +202,11 @@ public final class StorageClient: Sendable {
     public func getMetadata(path: String) async throws -> StorageObject {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
+        let currentToken = try await tokenSource.currentToken()
 
         var request = HTTPClientRequest(url: url)
         request.method = .GET
-        request.headers.add(name: "Authorization", value: "Bearer \(token)")
+        request.headers.add(name: "Authorization", value: "Bearer \(currentToken)")
 
         let response = try await httpClientProvider.client.execute(
             request,
