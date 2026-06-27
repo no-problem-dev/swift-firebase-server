@@ -419,13 +419,13 @@ private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContain
 // MARK: - Error
 
 /// エンコーディングエラー
-enum FirestoreEncodingError: Error, Sendable {
+public enum FirestoreEncodingError: Error, Sendable {
     case topLevelNotObject
     case unsupportedType(Any.Type)
 }
 
 extension FirestoreEncodingError: CustomStringConvertible {
-    var description: String {
+    public var description: String {
         switch self {
         case .topLevelNotObject:
             return "Top-level value must encode to an object (map)"

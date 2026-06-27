@@ -8,13 +8,13 @@ import Foundation
 /// 使用例:
 /// ```swift
 /// // Cloud Run / ローカル gcloud: 全自動
-/// let firestore = try await FirestoreClient(config: .auto)
+/// let firestore = try await FirestoreClient(.auto)
 ///
 /// // エミュレーター: projectIdのみ指定
-/// let firestore = FirestoreClient(config: .emulator(projectId: "demo-project"))
+/// let firestore = FirestoreClient(.emulator(projectId: "demo-project"))
 ///
 /// // 明示指定: 両方渡す（テストやカスタム認証フロー）
-/// let firestore = FirestoreClient(config: .explicit(projectId: "my-project", token: accessToken))
+/// let firestore = FirestoreClient(.explicit(projectId: "my-project", token: accessToken))
 /// ```
 public enum GCPConfiguration: Sendable {
     /// 自動検出モード

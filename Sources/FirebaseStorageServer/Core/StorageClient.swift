@@ -1,6 +1,6 @@
 import AsyncHTTPClient
 import Foundation
-@_exported import Internal
+import Internal
 import NIOCore
 import NIOHTTP1
 

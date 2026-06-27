@@ -579,14 +579,14 @@ private struct FirestoreSingleValueDecodingContainer: SingleValueDecodingContain
 // MARK: - Error
 
 /// デコーディングエラー
-enum FirestoreDecodingError: Error, Sendable {
+public enum FirestoreDecodingError: Error, Sendable {
     case keyNotFound(String)
     case typeMismatch(expected: String, actual: FirestoreValue)
     case outOfBounds(Int)
 }
 
 extension FirestoreDecodingError: CustomStringConvertible {
-    var description: String {
+    public var description: String {
         switch self {
         case .keyNotFound(let key):
             return "Key not found: \(key)"
