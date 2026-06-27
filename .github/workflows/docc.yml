@@ -16,10 +16,10 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: macos-15
     environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'github-pages' || '' }}
+      name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,68 +27,23 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.0'
+          xcode-version: '16.1'
 
-      - name: Create docs directory
-        run: mkdir -p ./docs
-
-      - name: Generate Documentation for FirestoreServer
+      - name: Generate Documentation
         run: |
-          swift package --allow-writing-to-directory ./docs/firestoreserver \
+          swift package --allow-writing-to-directory ./docs \
             generate-documentation \
             --target FirestoreServer \
             --disable-indexing \
             --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server/firestoreserver \
-            --output-path ./docs/firestoreserver
-
-      - name: Generate Documentation for FirestoreSchema
-        run: |
-          swift package --allow-writing-to-directory ./docs/firestoreschema \
-            generate-documentation \
-            --target FirestoreSchema \
-            --disable-indexing \
-            --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server/firestoreschema \
-            --output-path ./docs/firestoreschema
-
-      - name: Generate Documentation for FirebaseStorageServer
-        run: |
-          swift package --allow-writing-to-directory ./docs/firebasestorageserver \
-            generate-documentation \
-            --target FirebaseStorageServer \
-            --disable-indexing \
-            --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server/firebasestorageserver \
-            --output-path ./docs/firebasestorageserver
-
-      - name: Generate Documentation for FirebaseStorageSchema
-        run: |
-          swift package --allow-writing-to-directory ./docs/firebasestorageschema \
-            generate-documentation \
-            --target FirebaseStorageSchema \
-            --disable-indexing \
-            --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server/firebasestorageschema \
-            --output-path ./docs/firebasestorageschema
-
-      - name: Generate Documentation for FirebaseAuthServer
-        run: |
-          swift package --allow-writing-to-directory ./docs/firebaseauthserver \
-            generate-documentation \
-            --target FirebaseAuthServer \
-            --disable-indexing \
-            --transform-for-static-hosting \
-            --hosting-base-path swift-firebase-server/firebaseauthserver \
-            --output-path ./docs/firebaseauthserver
+            --hosting-base-path swift-firebase-server \
+            --output-path ./docs
 
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs'
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
         id: deployment
         uses: actions/deploy-pages@v4
