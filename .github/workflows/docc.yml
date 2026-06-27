@@ -33,7 +33,8 @@ jobs:
         run: |
           swift package --allow-writing-to-directory ./docs \
             generate-documentation \
-            --target FirestoreServer \
+            --enable-experimental-combined-documentation \
+            --target FirestoreServer --target FirestoreSchema --target FirebaseStorageServer --target FirebaseStorageSchema --target FirebaseAuthServer --target EventarcServer \
             --disable-indexing \
             --transform-for-static-hosting \
             --hosting-base-path swift-firebase-server \
