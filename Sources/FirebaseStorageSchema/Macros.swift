@@ -3,7 +3,7 @@
 /// Storageスキーマを定義するマクロ
 ///
 /// このマクロを構造体に適用すると、ネストされた`@Folder`構造体から
-/// フォルダアクセサを自動生成します。
+/// フォルダアクセサを自動生成する。
 ///
 /// ```swift
 /// @StorageSchema
@@ -21,7 +21,7 @@
 /// // 使用例
 /// let schema = AppStorage(client: storageClient)
 /// let path = schema.images.users.profile("userId", .jpg)
-/// let data = try await path.download(authorization: token)
+/// let data = try await path.download()
 /// ```
 @attached(member, names: named(client), named(init))
 @attached(memberAttribute)
@@ -30,7 +30,7 @@ public macro StorageSchema() = #externalMacro(module: "FirebaseStorageMacros", t
 
 /// Storageフォルダを定義するマクロ
 ///
-/// `@StorageSchema`または別の`@Folder`内で使用し、フォルダ名を指定します。
+/// `@StorageSchema`または別の`@Folder`内で使用し、フォルダ名を指定する。
 ///
 /// ```swift
 /// @Folder("images")
@@ -46,8 +46,8 @@ public macro Folder(_ folderName: String) = #externalMacro(module: "FirebaseStor
 
 /// Storageオブジェクト（ファイル）を定義するマクロ
 ///
-/// `@Folder`内で使用し、オブジェクトのベース名を指定します。
-/// 生成されるcallAsFunctionでIDと拡張子を指定してパスを生成できます。
+/// `@Folder`内で使用し、オブジェクトのベース名を指定する。
+/// 生成される callAsFunction で ID と拡張子を指定してパスを生成できる。
 ///
 /// ```swift
 /// @Folder("users")

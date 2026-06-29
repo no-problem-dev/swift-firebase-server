@@ -2,8 +2,8 @@ import Foundation
 
 /// フィールド参照を表す構造体
 ///
-/// FilterBuilder DSLでフィールドを指定するために使用します。
-/// 演算子オーバーロードにより、直感的なフィルター条件の記述が可能です。
+/// FilterBuilder DSL でフィールドを指定する際に使用する。
+/// 演算子オーバーロードで直感的なフィルター条件を記述できる。
 ///
 /// ## 使用例
 ///
@@ -36,7 +36,7 @@ public struct Field: Sendable {
 // MARK: - Comparison Operators
 
 /// 等価演算子（==）
-/// - Returns: FieldFilter with equal operator
+/// - Returns: 等値フィルター
 public func == <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),
@@ -46,7 +46,7 @@ public func == <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter
 }
 
 /// 不等価演算子（!=）
-/// - Returns: FieldFilter with notEqual operator
+/// - Returns: 不等値フィルター
 public func != <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),
@@ -56,7 +56,7 @@ public func != <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter
 }
 
 /// 小なり演算子（<）
-/// - Returns: FieldFilter with lessThan operator
+/// - Returns: 小なりフィルター
 public func < <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),
@@ -66,7 +66,7 @@ public func < <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter 
 }
 
 /// 小なりイコール演算子（<=）
-/// - Returns: FieldFilter with lessThanOrEqual operator
+/// - Returns: 小なりイコールフィルター
 public func <= <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),
@@ -76,7 +76,7 @@ public func <= <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter
 }
 
 /// 大なり演算子（>）
-/// - Returns: FieldFilter with greaterThan operator
+/// - Returns: 大なりフィルター
 public func > <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),
@@ -86,7 +86,7 @@ public func > <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter 
 }
 
 /// 大なりイコール演算子（>=）
-/// - Returns: FieldFilter with greaterThanOrEqual operator
+/// - Returns: 大なりイコールフィルター
 public func >= <V: FirestoreValueConvertible>(lhs: Field, rhs: V) -> FieldFilter {
     FieldFilter(
         field: FieldReference(lhs.path),

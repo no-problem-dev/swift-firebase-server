@@ -4,7 +4,7 @@
 
 ## Overview
 
-FirestoreServer は、サーバーサイド Swift アプリケーションから Firestore を操作するための軽量な REST API クライアントです。
+サーバーサイド Swift アプリケーションから Firestore を操作する軽量な REST API クライアント。
 
 主な特徴:
 - **REST API ベース**: gRPC 依存なしで動作
@@ -28,42 +28,42 @@ let client = FirestoreClient(.explicit(projectId: "my-project", token: accessTok
 
 ## Topics
 
-### Essentials
+### 基本
 
 - ``FirestoreClient``
 - ``FirestoreConfiguration``
 
-### References
+### 参照型
 
 - ``DocumentReference``
 - ``CollectionReference``
 
-### Path Types
+### パス型
 
 - ``DatabasePath``
 - ``DocumentPath``
 - ``CollectionPath``
 
-### Query
+### クエリ
 
 - ``Query``
 - ``Field``
 - ``SortDirection``
 
-### Filters
+### フィルター
 
 - ``FieldFilter``
 - ``UnaryFilter``
 - ``CompositeFilter``
 - ``QueryFilterProtocol``
 
-### Values
+### 値型
 
 - ``FirestoreValue``
 - ``FirestoreValueConvertible``
 - ``FirestoreDocument``
 
-### Errors
+### エラー
 
 - ``FirestoreError``
 - ``PathError``

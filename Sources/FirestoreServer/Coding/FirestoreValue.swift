@@ -223,8 +223,7 @@ extension FirestoreValueError: CustomStringConvertible {
 
 /// SwiftネイティブタイプからFirestoreValueへの変換プロトコル
 ///
-/// このプロトコルを使用することで、FilterBuilder DSLで
-/// Swift標準型を直接フィルター値として使用できます。
+/// FilterBuilder DSL で Swift 標準型をフィルター値として直接使用できるようにする。
 ///
 /// ```swift
 /// query.filter {

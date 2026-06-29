@@ -37,7 +37,13 @@ public final class StorageClient: Sendable {
 
     // MARK: - Initialization
 
-    /// 自動設定モードで初期化（async）
+    /// 自動設定モードで初期化する（async）。
+    ///
+    /// Cloud Run または gcloud ADC から認証情報を自動取得する。`.emulator` / `.explicit` の場合も使用可能。
+    /// - Parameters:
+    ///   - config: GCP 設定
+    ///   - bucket: アクセスするバケット名
+    /// - Throws: 認証情報の解決に失敗した場合
     public init(_ config: GCPConfiguration, bucket: String) async throws {
         let resolved = try await GCPEnvironment.shared.resolve(config)
 
@@ -56,7 +62,12 @@ public final class StorageClient: Sendable {
         self.httpClientProvider = HTTPClientProvider()
     }
 
-    /// 同期初期化（emulator / explicit のみ）
+    /// 同期初期化（`.emulator` / `.explicit` 専用）。
+    ///
+    /// `.auto` を渡すと fatalError になる。非同期認証が不要な場合に使用する。
+    /// - Parameters:
+    ///   - config: GCP 設定（`.emulator` または `.explicit` のみ有効）
+    ///   - bucket: アクセスするバケット名
     public init(_ config: GCPConfiguration, bucket: String) {
         switch config {
         case .auto, .autoWithDatabase:
@@ -73,7 +84,13 @@ public final class StorageClient: Sendable {
 
     // MARK: - Public API
 
-    /// ファイルをアップロード
+    /// ファイルをアップロードし、アップロード結果のメタデータを返す。
+    /// - Parameters:
+    ///   - data: アップロードするバイナリデータ
+    ///   - path: バケット内のオブジェクトパス（例: `"images/user123.jpg"`）
+    ///   - contentType: MIME タイプ（例: `"image/jpeg"`）
+    /// - Returns: アップロードされたオブジェクトのメタデータ
+    /// - Throws: `StorageError`（HTTP エラー・JSON パース失敗を含む）
     public func upload(
         data: Data,
         path: String,
@@ -117,7 +134,10 @@ public final class StorageClient: Sendable {
         return storageObject
     }
 
-    /// ファイルをダウンロード
+    /// ファイルをダウンロードし、バイナリデータを返す（最大 100 MB）。
+    /// - Parameter path: バケット内のオブジェクトパス
+    /// - Returns: ダウンロードしたバイナリデータ
+    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
     public func download(path: String) async throws -> Data {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)?alt=media"
@@ -143,7 +163,9 @@ public final class StorageClient: Sendable {
         return body.toData()
     }
 
-    /// ファイルを削除
+    /// 指定パスのファイルを削除する。
+    /// - Parameter path: バケット内のオブジェクトパス
+    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
     public func delete(path: String) async throws {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
@@ -167,7 +189,11 @@ public final class StorageClient: Sendable {
         }
     }
 
-    /// 複数ファイルを削除
+    /// 複数ファイルを順次削除し、失敗したパスとエラーを返す。
+    ///
+    /// 個々の削除失敗はスローせず、失敗情報をまとめて返す。全件成功した場合は空配列を返す。
+    /// - Parameter paths: 削除するオブジェクトパスの配列
+    /// - Returns: 失敗した `(path, error)` タプルの配列（順不同）
     public func deleteMultiple(paths: [String]) async -> [(path: String, error: StorageError)] {
         var failures: [(path: String, error: StorageError)] = []
 
@@ -184,7 +210,10 @@ public final class StorageClient: Sendable {
         return failures
     }
 
-    /// オブジェクトのメタデータを取得
+    /// 指定パスのオブジェクトメタデータを取得する。
+    /// - Parameter path: バケット内のオブジェクトパス
+    /// - Returns: オブジェクトのメタデータ（サイズ・コンテンツタイプ・ハッシュ等）
+    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
     public func getMetadata(path: String) async throws -> StorageObject {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
@@ -217,7 +246,9 @@ public final class StorageClient: Sendable {
         return storageObject
     }
 
-    /// オブジェクトの公開URLを取得
+    /// オブジェクトの公開 URL を返す（エミュレーター環境ではローカル URL）。
+    /// - Parameter path: バケット内のオブジェクトパス
+    /// - Returns: 公開アクセス可能な URL
     public func publicURL(for path: String) -> URL {
         configuration.publicURL(for: path)
     }

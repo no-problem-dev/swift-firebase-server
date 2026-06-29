@@ -5,12 +5,12 @@ import Foundation
 /// Eventarc トリガー: `google.cloud.audit.log.v1.written`
 ///
 /// Cloud Audit Logs は Identity Platform (Firebase Auth) などのサービスからの
-/// 監査ログをCloud RunにルーティングするためのEventarcトリガーで使用されます。
+/// 監査ログを Cloud Run にルーティングする Eventarc トリガーで使用される。
 ///
 /// ## Firebase Auth ユーザー作成イベントの受信
 ///
-/// Firebase Auth は直接 Eventarc プロバイダーではありませんが、
-/// Cloud Audit Logs 経由でユーザー作成イベントを受信できます。
+/// Firebase Auth は直接 Eventarc プロバイダーではないが、
+/// Cloud Audit Logs 経由でユーザー作成イベントを受信できる。
 ///
 /// ### gcloud トリガー作成コマンド
 /// ```bash
@@ -149,7 +149,7 @@ public struct CloudAuditLogEvent: Codable, Sendable {
 /// 動的な値を表現する型
 ///
 /// Cloud Audit Logs の request/response フィールドは
-/// `google.protobuf.Struct` 形式で、任意の構造を持ちます。
+/// `google.protobuf.Struct` 形式で、任意の構造を持つ。
 public struct DynamicValue: Codable, Sendable {
     /// 値の型
     public let type: String?
@@ -342,7 +342,7 @@ extension CloudAuditLogEvent {
 
     /// サインアップしたユーザーIDを取得
     ///
-    /// Identity Platform SignUp イベントの場合、レスポンスからlocalIdを抽出します。
+    /// Identity Platform SignUp イベントの場合、レスポンスから localId を抽出する。
     public var signedUpUserId: String? {
         guard isIdentityPlatformSignUp,
               let response = protoPayload?.response,

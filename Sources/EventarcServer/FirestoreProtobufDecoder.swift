@@ -4,12 +4,12 @@ import SwiftProtobuf
 /// Firestore Protobuf イベントデコーダー
 ///
 /// Eventarc から送信される Firestore イベントの Protobuf ペイロードを
-/// デコードし、既存の `FirestoreDocumentEvent` 型に変換します。
+/// デコードし、既存の `FirestoreDocumentEvent` 型に変換する。
 ///
 /// ## Eventarc Firestore トリガー
 ///
-/// Firestore の Eventarc トリガーは `application/protobuf` 形式のみをサポートします。
-/// JSON 形式は利用できません。
+/// Firestore の Eventarc トリガーは `application/protobuf` 形式のみをサポートする。
+/// JSON 形式は利用できない。
 ///
 /// ### gcloud トリガー作成コマンド
 /// ```bash

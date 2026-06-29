@@ -4,9 +4,9 @@ Google Cloud Eventarc イベント型（CloudEvents）
 
 ## Overview
 
-EventarcServer は、Google Cloud Eventarc から送信される CloudEvents を受信・解析するための型を提供します。
+EventarcServer は、Google Cloud Eventarc から送信される CloudEvents を受信・解析するための型を提供する。
 
-Firestore ドキュメント変更イベント、Firebase Auth ユーザーイベント、Cloud Audit Logs イベントに対応しています。Protobuf 形式のバイナリペイロードのデコードも含みます。
+Firestore ドキュメント変更イベント、Firebase Auth ユーザーイベント、Cloud Audit Logs イベントに対応する。Protobuf 形式のバイナリペイロードのデコードも含む。
 
 ### 初期化例
 
@@ -27,24 +27,24 @@ if headers.type == CloudEventHeaders.FirestoreEventType.documentCreated {
 
 ## Topics
 
-### Firestore Document Events
+### Firestore ドキュメントイベント
 
 - ``FirestoreDocumentEvent``
 - ``FirestoreProtobufDecoder``
 
-### Auth Events
+### 認証イベント
 
 - ``AuthUserCreatedEvent``
 
-### Cloud Audit Logs
+### Cloud Audit Logs イベント
 
 - ``CloudAuditLogEvent``
 
-### CloudEvents Metadata
+### CloudEvents メタデータ
 
 - ``CloudEventHeaders``
 
-### Value Types
+### 値の型
 
 - ``FirestoreDocument``
 - ``FirestoreValue``

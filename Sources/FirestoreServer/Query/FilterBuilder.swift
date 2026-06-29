@@ -4,17 +4,25 @@ import Foundation
 
 /// フィルター条件を構築するためのResultBuilder
 ///
-/// 複数のフィルター条件を宣言的に記述できます。
-/// デフォルトでは複数の条件はAND結合されます。
+/// フィルター条件を宣言的に記述できる。
+/// トップレベルに置けるフィルターは1つのみ。
+/// 複数条件を組み合わせる場合は `And` または `Or` で明示的に囲む必要がある。
 ///
 /// ## 基本的な使用例
 ///
 /// ```swift
+/// // 単一条件（トップレベルに1つのみ許可）
 /// query.filter {
 ///     Field("status") == "active"
-///     Field("age") >= 18
 /// }
-/// // → status == "active" AND age >= 18
+///
+/// // 複数条件は And/Or で囲む
+/// query.filter {
+///     And {
+///         Field("status") == "active"
+///         Field("age") >= 18
+///     }
+/// }
 /// ```
 ///
 /// ## 条件分岐
@@ -112,7 +120,7 @@ public struct FilterBuilder {
     /// 最終結果を構築
     ///
     /// トップレベルでは単一のフィルターのみ許可。
-    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要があります。
+    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要がある。
     public static func buildFinalResult(_ component: [any QueryFilterProtocol]) -> QueryFilter {
         switch component.count {
         case 0:
@@ -129,7 +137,7 @@ public struct FilterBuilder {
 
 /// AND条件をグループ化するための構造体
 ///
-/// FilterBuilder内で明示的にANDグループを作成します。
+/// FilterBuilder内で明示的にANDグループを作成する。
 ///
 /// ```swift
 /// query.filter {
@@ -206,7 +214,7 @@ public struct AndFilterBuilder {
 
 /// OR条件をグループ化するための構造体
 ///
-/// FilterBuilder内で明示的にORグループを作成します。
+/// FilterBuilder内で明示的にORグループを作成する。
 ///
 /// ```swift
 /// query.filter {
@@ -284,59 +292,59 @@ public struct OrFilterBuilder {
 extension Query {
     /// FilterBuilder DSLを使用してフィルター条件を追加
     ///
-    /// トップレベルでは単一のフィルターのみ許可されます。
-    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要があります。
+    /// トップレベルでは単一のフィルターのみ許可される。
+    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要がある。
     ///
     /// ## 使用例
     ///
     /// ```swift
     /// // 単一条件のフィルタリング
-    /// let activeUsers = try await schema.users
-    ///     .query(as: User.self)
-    ///     .filter {
-    ///         Field("status") == "active"
-    ///     }
-    ///     .get()
+    /// let activeUsers = try await schema.users.execute(
+    ///     schema.users.query()
+    ///         .filter {
+    ///             Field("status") == "active"
+    ///         }
+    /// )
     ///
     /// // 複数条件（明示的なAnd）
-    /// let users = try await schema.users
-    ///     .query(as: User.self)
-    ///     .filter {
-    ///         And {
-    ///             Field("status") == "active"
-    ///             Field("age") >= 18
-    ///             if onlyVerified {
-    ///                 Field("verified") == true
+    /// let users = try await schema.users.execute(
+    ///     schema.users.query()
+    ///         .filter {
+    ///             And {
+    ///                 Field("status") == "active"
+    ///                 Field("age") >= 18
+    ///                 if onlyVerified {
+    ///                     Field("verified") == true
+    ///                 }
     ///             }
     ///         }
-    ///     }
-    ///     .get()
+    /// )
     ///
     /// // OR条件
-    /// let admins = try await schema.users
-    ///     .query(as: User.self)
-    ///     .filter {
-    ///         Or {
-    ///             Field("role") == "admin"
-    ///             Field("role") == "moderator"
-    ///         }
-    ///     }
-    ///     .get()
-    ///
-    /// // ネストした条件
-    /// let products = try await schema.products
-    ///     .query(as: Product.self)
-    ///     .filter {
-    ///         And {
-    ///             Field("active") == true
-    ///             Field("stock") > 0
+    /// let admins = try await schema.users.execute(
+    ///     schema.users.query()
+    ///         .filter {
     ///             Or {
-    ///                 Field("category") == "electronics"
-    ///                 Field("featured") == true
+    ///                 Field("role") == "admin"
+    ///                 Field("role") == "moderator"
     ///             }
     ///         }
-    ///     }
-    ///     .get()
+    /// )
+    ///
+    /// // ネストした条件
+    /// let products = try await schema.products.execute(
+    ///     schema.products.query()
+    ///         .filter {
+    ///             And {
+    ///                 Field("active") == true
+    ///                 Field("stock") > 0
+    ///                 Or {
+    ///                     Field("category") == "electronics"
+    ///                     Field("featured") == true
+    ///                 }
+    ///             }
+    ///         }
+    /// )
     /// ```
     ///
     /// - Parameter content: フィルター条件を構築するクロージャ

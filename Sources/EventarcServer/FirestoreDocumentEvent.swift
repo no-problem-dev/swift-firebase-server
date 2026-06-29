@@ -8,8 +8,8 @@ import Foundation
 /// - `google.cloud.firestore.document.v1.deleted`
 /// - `google.cloud.firestore.document.v1.written`
 ///
-/// Firestore ドキュメントの変更時に送信されるイベントです。
-/// 新しい値（`value`）と古い値（`oldValue`）が含まれます。
+/// Firestore ドキュメントの変更時に送信されるイベント。
+/// 新しい値（`value`）と古い値（`oldValue`）を含む。
 ///
 /// ## 使用例
 /// ```swift
@@ -54,7 +54,7 @@ public struct FirestoreDocumentEvent: Codable, Sendable {
 
 /// Firestore ドキュメント
 ///
-/// Firestoreの内部表現形式でのドキュメントデータです。
+/// Firestore の内部表現形式でのドキュメントデータ。
 public struct FirestoreDocument: Codable, Sendable {
     /// ドキュメントのフルパス
     /// 例: `projects/my-project/databases/(default)/documents/users/abc123/books/xyz789`
@@ -129,7 +129,7 @@ public struct FirestoreDocument: Codable, Sendable {
 
 /// Firestore 値の内部表現
 ///
-/// Firestoreは型情報を含む特殊なJSON形式を使用します。
+/// Firestore は型情報を含む特殊な JSON 形式を使用する。
 public struct FirestoreValue: Codable, Sendable {
     /// 文字列値
     public let stringValue: String?
@@ -384,7 +384,7 @@ public struct FirestoreValue: Codable, Sendable {
 extension FirestoreDocumentEvent {
     /// ドキュメントパスからパラメータを抽出
     ///
-    /// パスパターンに基づいてドキュメントパスからパラメータを抽出します。
+    /// パスパターンに基づいてドキュメントパスからパラメータを抽出する。
     ///
     /// ## 使用例
     /// ```swift

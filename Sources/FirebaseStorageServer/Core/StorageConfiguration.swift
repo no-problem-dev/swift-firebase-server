@@ -66,7 +66,7 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
         )
     }
 
-    /// EmulatorConfigurable準拠
+    /// `EmulatorConfigurable` プロトコル準拠。バケット名を `"\(projectId).appspot.com"` で自動補完する。
     public static func emulator(
         projectId: String,
         host: String,

@@ -4,7 +4,7 @@
 
 ## Overview
 
-FirebaseAuthServer は、サーバーサイド Swift アプリケーションで Firebase ID トークンを検証するためのライブラリです。
+FirebaseAuthServer は、サーバーサイド Swift アプリケーションで Firebase ID トークンを検証するためのライブラリ。
 
 主な特徴:
 - **JWT 検証**: RS256 署名の完全な検証
@@ -14,22 +14,23 @@ FirebaseAuthServer は、サーバーサイド Swift アプリケーションで
 
 ## Topics
 
-### Essentials
+### 基本
 
 - ``AuthClient``
 - ``AuthConfiguration``
+- ``AuthAdminClient``
 
-### Token Verification
+### トークン検証
 
 - ``IDTokenVerifier``
 - ``IDTokenVerifying``
 - ``VerifiedToken``
 - ``PublicKeyCache``
 
-### Claims
+### クレーム
 
 - ``FirebaseClaim``
 
-### Errors
+### エラー
 
 - ``AuthError``

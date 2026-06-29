@@ -2,8 +2,8 @@ import Foundation
 
 /// CloudEvents 仕様に基づくHTTPヘッダー
 ///
-/// Google Cloud Eventarc は CloudEvents 形式でイベントを送信します。
-/// このプロトコルはWebhookヘッダーからCloudEventメタデータを抽出します。
+/// Google Cloud Eventarc は CloudEvents 形式でイベントを送信する。
+/// HTTP ヘッダーから CloudEvents メタデータを抽出する。
 ///
 /// ## CloudEvents 仕様
 /// - `ce-type`: イベントタイプ（例: `google.firebase.auth.user.v1.created`）

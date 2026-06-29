@@ -5,9 +5,9 @@ import SwiftSyntaxMacros
 
 /// `@Field("key")`マクロの実装
 ///
-/// このマクロはプロパティに付与され、カスタムのFirestoreキー名を指定します。
+/// プロパティに付与し、カスタムのFirestoreキー名を指定する。
 /// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// CodingKeysを生成します。
+/// `CodingKeys` を生成する。
 public struct FieldMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -50,9 +50,9 @@ public struct FieldMacro: PeerMacro {
 
 /// `@Field(strategy: .snakeCase)`マクロの実装
 ///
-/// このマクロはプロパティに付与され、そのフィールドのキー変換戦略を指定します。
+/// プロパティに付与し、フィールドのキー変換戦略を指定する。
 /// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// CodingKeysを生成します。
+/// `CodingKeys` を生成する。
 public struct FieldStrategyMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,

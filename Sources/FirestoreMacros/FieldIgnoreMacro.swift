@@ -5,9 +5,9 @@ import SwiftSyntaxMacros
 
 /// `@FieldIgnore`マクロの実装
 ///
-/// このマクロはプロパティに付与され、そのフィールドをCodingKeysから除外します。
+/// プロパティに付与し、フィールドを`CodingKeys`から除外する。
 /// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// CodingKeysを生成します。
+/// `CodingKeys` を生成する。
 public struct FieldIgnoreMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,

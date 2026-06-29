@@ -4,8 +4,8 @@ import Foundation
 ///
 /// Eventarc トリガー: `google.firebase.auth.user.v1.created`
 ///
-/// Firebase Auth で新規ユーザーが作成された際に送信されるイベントです。
-/// ユーザー情報（UID、メール、表示名など）が含まれます。
+/// Firebase Auth で新規ユーザーが作成された際に送信されるイベント。
+/// ユーザー情報（UID、メール、表示名など）を含む。
 ///
 /// ## 使用例
 /// ```swift
@@ -89,7 +89,7 @@ public struct AuthUserCreatedEvent: Codable, Sendable {
 
     /// 初期化
     ///
-    /// Cloud Audit Logsからの変換など、プログラムでインスタンスを作成する場合に使用します。
+    /// Cloud Audit Logs からの変換など、プログラムでインスタンスを作成する場合に使用する。
     public init(
         uid: String,
         email: String? = nil,

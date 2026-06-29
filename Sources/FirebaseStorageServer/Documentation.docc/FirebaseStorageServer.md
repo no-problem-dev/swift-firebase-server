@@ -4,7 +4,7 @@
 
 ## Overview
 
-FirebaseStorageServer は、サーバーサイド Swift アプリケーションから Cloud Storage for Firebase を操作するためのクライアントです。
+FirebaseStorageServer は、サーバーサイド Swift アプリケーションから Cloud Storage for Firebase を操作するためのクライアント。
 
 主な特徴:
 - **REST API ベース**: gRPC 依存なしで動作
@@ -28,15 +28,15 @@ let client = StorageClient(.explicit(projectId: "my-project", token: accessToken
 
 ## Topics
 
-### Essentials
+### エッセンシャル
 
 - ``StorageClient``
 - ``StorageConfiguration``
 
-### Models
+### モデル
 
 - ``StorageObject``
 
-### Errors
+### エラー
 
 - ``StorageError``

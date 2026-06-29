@@ -1,29 +1,29 @@
 # swift-firebase-server
 
-サーバーサイドSwift向けFirebase REST APIクライアント（Firestore & Cloud Storage & Auth）
+Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth)
 
-🌐 **[English](README_EN.md)** | 日本語
+English | [日本語](./README.ja.md)
 
 ![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
-![License](https://img.shields.io/badge/License-MIT.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## できること
+## What You Can Do
 
-- Firestore のドキュメント CRUD 操作
-- Cloud Storage のファイルアップロード・ダウンロード
-- Firebase Auth の ID トークン検証
-- 型安全なコレクションパス生成
-- 宣言的なクエリ構築
+- Firestore document CRUD operations
+- Cloud Storage file upload & download
+- Firebase Auth ID token verification
+- Type-safe collection path generation
+- Declarative query building
 
-## 特徴
+## Features
 
-- **Swift Macro DSL** - `@FirestoreSchema`、`@Collection`、`@FirestoreModel` で型安全なスキーマとモデルを定義
-- **CodingKeys 自動生成** - `@FirestoreModel` で `snakeCase` 変換や `@Field` カスタムキーに対応
-- **REST API ネイティブ** - Firebase Admin SDK 不要、サーバーサイド Swift から直接アクセス
-- **FilterBuilder DSL** - Result Builder による宣言的なクエリ構文
+- **Swift Macro DSL** - Type-safe schema and model definitions with `@FirestoreSchema`, `@Collection`, `@FirestoreModel`
+- **Auto-generated CodingKeys** - `@FirestoreModel` supports `snakeCase` conversion and `@Field` custom keys
+- **Native REST API** - Direct access from server-side Swift without Firebase Admin SDK
+- **FilterBuilder DSL** - Declarative query syntax with Result Builders
 
-## クイックスタート
+## Quick Start
 
 ```swift
 import FirestoreServer
@@ -45,28 +45,28 @@ struct Schema {
     }
 }
 
-// Cloud Run / ローカル gcloud 自動検出
+// Cloud Run / local gcloud auto-detection
 let client = try await FirestoreClient(.auto)
 let schema = Schema(client: client)
 
-// ドキュメント取得（型推論が効く）
+// Get document (type inference works)
 let user = try await schema.users.document("user123").get()
 
-// ドキュメント作成
+// Create document
 try await schema.users.document("user123").create(data: newUser)
 
-// クエリ実行
+// Execute query
 let activeUsers = try await schema.users.execute(
     schema.users.query().filter { Field("status") == "active" }
 )
 ```
 
-## インストール
+## Installation
 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.0"))
+    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.17"))
 ]
 
 .target(
@@ -81,52 +81,52 @@ dependencies: [
 )
 ```
 
-## ドキュメント
+## Documentation
 
-### 📖 使用ガイド
+### Usage Guides
 
-| ガイド | 説明 |
-|--------|------|
-| [はじめに](documentation/getting-started.md) | 環境構築とクイックスタート |
-| [Firestore ドキュメント操作](documentation/firestore/document-operations.md) | CRUD操作 |
-| [Firestore クエリ](documentation/firestore/queries.md) | フィルター、ソート、ページネーション |
-| [Firestore スキーマ定義](documentation/firestore/schema-definition.md) | @FirestoreSchema マクロ |
-| [Firestore モデル定義](documentation/firestore/model-definition.md) | @FirestoreModel マクロ |
-| [Storage ファイル操作](documentation/storage/file-operations.md) | アップロード・ダウンロード |
-| [Storage スキーマ定義](documentation/storage/schema-definition.md) | @StorageSchema マクロ |
-| [Auth トークン検証](documentation/auth/token-verification.md) | IDトークン検証 |
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](documentation/getting-started.md) | Setup and quick start |
+| [Firestore Document Operations](documentation/firestore/document-operations.md) | CRUD operations |
+| [Firestore Queries](documentation/firestore/queries.md) | Filters, sorting, pagination |
+| [Firestore Schema Definition](documentation/firestore/schema-definition.md) | @FirestoreSchema macro |
+| [Firestore Model Definition](documentation/firestore/model-definition.md) | @FirestoreModel macro |
+| [Storage File Operations](documentation/storage/file-operations.md) | Upload & download |
+| [Storage Schema Definition](documentation/storage/schema-definition.md) | @StorageSchema macro |
+| [Auth Token Verification](documentation/auth/token-verification.md) | ID token verification |
 
-### 📚 APIリファレンス（DocC）
+### API Reference (DocC)
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API クライアント
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - 型安全なスキーマ DSL
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage クライアント
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - 型安全な Storage スキーマ DSL
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID トークン検証
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API client
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - Type-safe schema DSL
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage client
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - Type-safe Storage schema DSL
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID token verification
 
-### 🔧 技術リファレンス
+### Technical Reference
 
-- [Swift Macro リファレンス](documentation/references/macros/README.md) - マクロの包括的なリファレンス
+- [Swift Macro Reference](documentation/references/macros/README.md) - Comprehensive macro reference
 
-## 要件
+## Requirements
 
 - macOS 14+
 - Swift 6.2+
 - Xcode 16+
 
-## ライセンス
+## License
 
-MIT License - 詳細は [LICENSE](LICENSE) を参照
+MIT License - See [LICENSE](LICENSE) for details
 
-## 開発者向け情報
+## For Developers
 
-- 🚀 **リリース作業**: [リリースプロセス](RELEASE_PROCESS.md)
+- **Release Process**: [Release Process Guide](RELEASE_PROCESS.md)
 
-## サポート
+## Support
 
-- 🐛 [Issue報告](https://github.com/no-problem-dev/swift-firebase-server/issues)
-- 💬 [ディスカッション](https://github.com/no-problem-dev/swift-firebase-server/discussions)
+- [Issue Reports](https://github.com/no-problem-dev/swift-firebase-server/issues)
+- [Discussions](https://github.com/no-problem-dev/swift-firebase-server/discussions)
 
 ---
 
-Made with ❤️ by [NOPROBLEM](https://github.com/no-problem-dev)
+Made with love by [NOPROBLEM](https://github.com/no-problem-dev)

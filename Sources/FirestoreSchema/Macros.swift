@@ -2,11 +2,11 @@
 
 /// Firestoreドキュメントモデルを表すマーカープロトコル
 ///
-/// `@FirestoreModel`マクロを適用した構造体は自動的にこのプロトコルに準拠します。
-/// `@Collection`マクロの`model:`パラメータにはこのプロトコルに準拠した型のみ指定できます。
+/// `@FirestoreModel`マクロを適用した構造体は自動的にこのプロトコルに準拠する。
+/// `@Collection`マクロの`model:`パラメータにはこのプロトコルに準拠した型のみ指定できる。
 ///
-/// このプロトコルは`Codable`と`Sendable`を継承しないマーカープロトコルです。
-/// `@FirestoreModel`マクロが`Codable`と`Sendable`を別途付与します。
+/// このプロトコルは`Codable`と`Sendable`を継承しないマーカープロトコル。
+/// `@FirestoreModel`マクロが`Codable`と`Sendable`を別途付与する。
 ///
 /// ```swift
 /// @FirestoreModel  // 自動的にFirestoreModelProtocol, Codable, Sendableに準拠
@@ -29,7 +29,7 @@ public protocol FirestoreModelProtocol: Sendable {}
 /// Firestoreフィールドのキー変換戦略
 ///
 /// `@FirestoreModel`や`@Field`マクロで使用し、
-/// Swiftプロパティ名とFirestoreフィールド名の変換方法を指定します。
+/// Swiftプロパティ名とFirestoreフィールド名の変換方法を指定する。
 ///
 /// ```swift
 /// @FirestoreModel(keyStrategy: .snakeCase)
@@ -41,14 +41,14 @@ public protocol FirestoreModelProtocol: Sendable {}
 public enum FirestoreKeyStrategy: Sendable {
     /// デフォルト（変換なし）
     ///
-    /// プロパティ名をそのままフィールド名として使用します。
-    /// FirestoreConfigurationのKeyStrategyがあれば、それがランタイムで適用されます。
+    /// プロパティ名をそのままフィールド名として使用する。
+    /// FirestoreConfiguration のキー戦略はランタイムで適用される。
     case useDefault
 
     /// camelCase → snake_case 変換
     ///
     /// Swiftの標準的な命名規則（camelCase）から
-    /// snake_caseに変換します。
+    /// snake_case に変換する。
     ///
     /// 例:
     /// - `userId` → `user_id`
@@ -62,7 +62,7 @@ public enum FirestoreKeyStrategy: Sendable {
 /// Firestoreドキュメントモデルを定義するマクロ
 ///
 /// このマクロを構造体に適用すると、`CodingKeys`を自動生成し、
-/// `Codable`と`Sendable`への準拠を追加します。
+/// `Codable`と`Sendable`への準拠を付与する。
 ///
 /// ```swift
 /// @FirestoreModel(keyStrategy: .snakeCase)
@@ -88,7 +88,7 @@ public macro FirestoreModel(
 /// フィールドにカスタムキー名を指定するマクロ
 ///
 /// `@FirestoreModel`内のプロパティに適用し、
-/// Firestoreでのフィールド名を明示的に指定します。
+/// Firestore でのフィールド名を明示的に指定する。
 ///
 /// ```swift
 /// @FirestoreModel
@@ -105,7 +105,7 @@ public macro Field(_ key: String) = #externalMacro(module: "FirestoreMacros", ty
 /// フィールドにキー変換戦略を指定するマクロ
 ///
 /// `@FirestoreModel`内のプロパティに適用し、
-/// そのフィールドのみに特定の変換戦略を適用します。
+/// そのフィールドのみに特定の変換戦略を適用する。
 ///
 /// ```swift
 /// @FirestoreModel  // デフォルトは useDefault
@@ -124,9 +124,9 @@ public macro Field(strategy: FirestoreKeyStrategy) = #externalMacro(module: "Fir
 /// フィールドをFirestoreエンコード/デコードから除外するマクロ
 ///
 /// `@FirestoreModel`内のプロパティに適用し、
-/// そのフィールドをCodingKeysから除外します。
+/// そのフィールドを `CodingKeys` から除外する。
 /// ローカルキャッシュや計算プロパティ用のバッキングストアなど、
-/// Firestoreに保存しないフィールドに使用します。
+/// Firestoreに保存しないフィールドに使用する。
 ///
 /// ```swift
 /// @FirestoreModel
@@ -139,7 +139,7 @@ public macro Field(strategy: FirestoreKeyStrategy) = #externalMacro(module: "Fir
 /// }
 /// ```
 ///
-/// **注意**: `@FieldIgnore`を適用したプロパティにはデフォルト値が必要です。
+/// **注意**: `@FieldIgnore`を適用したプロパティにはデフォルト値が必要。
 @attached(peer)
 public macro FieldIgnore() = #externalMacro(module: "FirestoreMacros", type: "FieldIgnoreMacro")
 
@@ -147,9 +147,9 @@ public macro FieldIgnore() = #externalMacro(module: "FirestoreMacros", type: "Fi
 
 /// Firestoreスキーマを定義するマクロ
 ///
-/// structに適用し、型安全なFirestoreアクセスを自動生成します。
+/// structに適用し、型安全なFirestoreアクセスを自動生成する。
 /// `client`、`database`プロパティと`init(client:)`イニシャライザが生成され、
-/// 各`@Collection`に対応する型付きコレクションプロパティも追加されます。
+/// 各`@Collection`に対応する型付きコレクションプロパティも追加される。
 ///
 /// ```swift
 /// @FirestoreSchema
@@ -172,8 +172,8 @@ public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type:
 
 /// Firestoreコレクションを定義するマクロ
 ///
-/// `@FirestoreSchema` struct内のenumに適用し、コレクションパスとモデル型を自動生成します。
-/// ネストされている場合は自動的にサブコレクションとして扱われます。
+/// `@FirestoreSchema` struct内のenumに適用し、コレクションパスとモデル型を自動生成する。
+/// ネストされている場合は自動的にサブコレクションとして扱われる。
 ///
 /// ```swift
 /// @FirestoreSchema
@@ -201,7 +201,7 @@ public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type:
 /// ```
 ///
 /// - Parameter collectionId: Firestoreのコレクション名
-/// - Parameter model: このコレクションに格納されるモデルの型（`FirestoreModelProtocol`に準拠している必要があります）
+/// - Parameter model: このコレクションに格納されるモデルの型（`FirestoreModelProtocol` 準拠が必要）
 @attached(member, names: named(collectionId), named(collectionPath), named(documentPath), named(Model), arbitrary)
 public macro Collection<T: FirestoreModelProtocol>(_ collectionId: String, model: T.Type) = #externalMacro(module: "FirestoreMacros", type: "CollectionMacro")
 

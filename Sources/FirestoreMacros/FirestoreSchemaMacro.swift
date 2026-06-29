@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// `@FirestoreSchema`マクロの実装
 ///
-/// structに適用し、以下を自動生成します:
+/// structに適用し、以下を自動生成する:
 /// - `init(client:)` イニシャライザ
 /// - `client` プロパティ
 /// - `database` プロパティ

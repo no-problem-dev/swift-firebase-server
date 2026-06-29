@@ -13,7 +13,7 @@ import Internal
 ///
 /// ```swift
 /// // 本番環境（Cloud Run / ローカル gcloud）
-/// let adminClient = try await AuthAdminClient(projectId: "my-project")
+/// let adminClient = AuthAdminClient(projectId: "my-project")
 ///
 /// // ユーザーを削除
 /// try await adminClient.deleteUser(uid: "user-123")

@@ -68,8 +68,8 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
 
     /// フィルター条件を追加
     ///
-    /// 既存のフィルターがある場合はANDで結合します。
-    /// これによりwhereField()をチェーンした場合に正しく動作します。
+    /// 既存のフィルターがある場合はANDで結合する。
+    /// `whereField()` をチェーンしても正しく動作する。
     public func `where`(_ filter: some QueryFilterProtocol) -> Query<T> {
         let combinedFilter: QueryFilter
         if let existingFilter = self.filter {
