@@ -1,6 +1,6 @@
 # Firestore スキーマ定義
 
-`@FirestoreSchema` と `@Collection` マクロを使用して、Firestoreのコレクション構造を型安全に定義します。
+`@FirestoreSchema` と `@Collection` マクロを使用して、Firestoreのコレクション構造を型安全に定義する。
 
 ## 基本的なスキーマ
 
@@ -19,7 +19,7 @@ struct Schema {
 
 ## 生成されるAPI
 
-各 `@Collection` は以下を自動生成します：
+各 `@Collection` は以下を自動生成する：
 
 | 生成物 | 説明 | 例 |
 |--------|------|-----|
@@ -37,7 +37,7 @@ Schema.Users.Model.self             // User.Type
 
 ## サブコレクション
 
-`@Collection` をネストすることでサブコレクションを定義できます：
+`@Collection` をネストすることでサブコレクションを定義できる：
 
 ```swift
 @FirestoreSchema
@@ -53,7 +53,7 @@ struct Schema {
 }
 ```
 
-サブコレクションは親ドキュメントIDを引数に取ります：
+サブコレクションは親ドキュメントIDを引数に取る：
 
 ```swift
 // 1階層目
@@ -74,7 +74,7 @@ Schema.Users.Posts.Comments.documentPath("user1", "post1", "comment1")
 
 ## model パラメータ
 
-`model:` パラメータには `@FirestoreModel` マクロを適用した型のみ指定できます：
+`model:` パラメータには `@FirestoreModel` マクロを適用した型のみ指定できる：
 
 ```swift
 // OK: @FirestoreModel が適用されている
@@ -95,7 +95,7 @@ struct PlainStruct: Codable {
 enum Items {}
 ```
 
-この制約により、スキーマで使用される全ての型がFirestoreモデルとして正しく定義されていることが保証されます。
+この制約により、スキーマで使用される全ての型がFirestoreモデルとして正しく定義されていることが保証される。
 
 ## スキーマの使用例
 
@@ -116,14 +116,14 @@ let post = try await schema.users.document("user123").posts.document("post456").
 // クエリ実行
 let recentPosts = try await schema.users.document("user123").posts.execute(
     schema.users.document("user123").posts.query()
-        .order(by: "createdAt", direction: .descending)
+        .order(by: FieldPath("createdAt"), direction: .descending)
         .limit(to: 10)
 )
 ```
 
 ## 静的パスの使用
 
-スキーマからは静的なパス文字列も取得できます：
+スキーマからは静的なパス文字列も取得できる：
 
 ```swift
 Schema.Users.collectionId           // "users"

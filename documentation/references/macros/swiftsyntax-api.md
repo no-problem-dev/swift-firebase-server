@@ -1,10 +1,10 @@
 # SwiftSyntax API リファレンス
 
-マクロ実装で使用する主要なSwiftSyntax APIについて説明します。
+マクロ実装で使用する主要なSwiftSyntax APIについて説明する。
 
 ## 概要
 
-[SwiftSyntax](https://github.com/swiftlang/swift-syntax) はSwiftソースコードを解析・操作するためのライブラリです。マクロ実装では、入力の構文木を読み取り、新しい構文木を生成します。
+[SwiftSyntax](https://github.com/swiftlang/swift-syntax) はSwiftソースコードを解析・操作するためのライブラリ。マクロ実装では、入力の構文木を読み取り、新しい構文木を生成する。
 
 ## 主要な型
 

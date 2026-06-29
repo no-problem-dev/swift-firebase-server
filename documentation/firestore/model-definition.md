@@ -1,6 +1,6 @@
 # Firestore モデル定義
 
-`@FirestoreModel` マクロを使用して、Firestoreドキュメントの構造を定義します。
+`@FirestoreModel` マクロを使用して、Firestoreドキュメントの構造を定義する。
 
 ## 基本的なモデル
 
@@ -15,7 +15,7 @@ struct User {
 }
 ```
 
-`@FirestoreModel` は以下を自動生成します：
+`@FirestoreModel` は以下を自動生成する：
 - `Codable` 準拠
 - `Sendable` 準拠
 - `FirestoreModelProtocol` 準拠（スキーマでの使用に必要）
@@ -24,7 +24,7 @@ struct User {
 
 ### snake_case 変換
 
-Firestoreでは一般的に `snake_case` が使用されます。`keyStrategy: .snakeCase` を指定すると、Swiftの `camelCase` プロパティが自動的に変換されます：
+Firestoreでは一般的に `snake_case` が使用される。`keyStrategy: .snakeCase` を指定すると、Swiftの `camelCase` プロパティが自動的に変換される：
 
 ```swift
 @FirestoreModel(keyStrategy: .snakeCase)
@@ -47,7 +47,7 @@ struct Config {
 
 ## @Field - カスタムキー名
 
-特定のプロパティに明示的なフィールド名を指定します：
+特定のプロパティに明示的なフィールド名を指定する：
 
 ```swift
 @FirestoreModel(keyStrategy: .snakeCase)
@@ -61,7 +61,7 @@ struct User {
 
 ### 個別の変換戦略
 
-プロパティごとに変換戦略を指定することもできます：
+プロパティごとに変換戦略を指定することもできる：
 
 ```swift
 @FirestoreModel  // デフォルトは変換なし
@@ -75,7 +75,7 @@ struct MixedModel {
 
 ## @FieldIgnore - フィールド除外
 
-Firestoreに保存しないプロパティを指定します：
+Firestoreに保存しないプロパティを指定する：
 
 ```swift
 @FirestoreModel(keyStrategy: .snakeCase)
@@ -91,7 +91,7 @@ struct CachedDocument {
 }
 ```
 
-> **注意**: `@FieldIgnore` を適用したプロパティにはデフォルト値が必要です。
+> **注意**: `@FieldIgnore` を適用したプロパティにはデフォルト値が必要。
 
 ## 完全な例
 

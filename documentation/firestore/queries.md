@@ -1,6 +1,6 @@
 # クエリ
 
-スキーマベースのクエリ機能です。FilterBuilder DSLによる宣言的な構文を使用します。
+スキーマベースのクエリ機能。FilterBuilder DSLによる宣言的な構文を使用する。
 
 ## 基本
 
@@ -31,7 +31,7 @@ let activeUsers = try await schema.users.execute(
 
 ## 複合条件
 
-複数条件は `And` または `Or` で囲みます。
+複数条件は `And` または `Or` で囲む。
 
 ```swift
 // AND条件
@@ -77,7 +77,7 @@ let featured = try await schema.products.execute(
 let results = try await schema.users.execute(
     schema.users.query()
         .filter { Field("status") == "active" }
-        .order(by: "createdAt", direction: .descending)
+        .order(by: FieldPath("createdAt"), direction: .descending)
         .limit(to: 20)
 )
 ```
@@ -102,7 +102,7 @@ let page2 = try await schema.users.execute(
 // カーソルベース
 let nextPage = try await schema.users.execute(
     schema.users.query()
-        .order(by: "createdAt")
+        .order(by: FieldPath("createdAt"))
         .start(after: .timestamp(lastCreatedAt))
         .limit(to: 20)
 )
@@ -110,7 +110,7 @@ let nextPage = try await schema.users.execute(
 
 ## 動的フィルター
 
-Swift の制御構文が使えます。
+Swift の制御構文が使える。
 
 ```swift
 func search(verified: Bool?, minAge: Int?) async throws -> [User] {
@@ -134,7 +134,7 @@ func search(verified: Bool?, minAge: Int?) async throws -> [User] {
 let userPosts = try await schema.users.document("user123").posts.execute(
     schema.users.document("user123").posts.query()
         .filter { Field("published") == true }
-        .order(by: "createdAt", direction: .descending)
+        .order(by: FieldPath("createdAt"), direction: .descending)
 )
 ```
 

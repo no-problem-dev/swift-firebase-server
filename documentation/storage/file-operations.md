@@ -1,6 +1,6 @@
 # ファイル操作
 
-StorageClientを使用したファイルのアップロード・ダウンロード操作です。
+StorageClientを使用したファイルのアップロード・ダウンロード操作。
 
 ## クライアントの初期化
 
@@ -19,7 +19,7 @@ let client = StorageClient(.explicit(projectId: "my-project", token: accessToken
 
 ## スキーマを使用した操作（推奨）
 
-スキーマを定義すると、型安全かつ簡潔にファイル操作ができます。
+スキーマを定義すると、型安全かつ簡潔にファイル操作ができる。
 
 ### アップロード
 

@@ -1,6 +1,6 @@
 # マクロのパッケージ構成
 
-Swift Macroを実装するためのパッケージ構成とプラグイン登録について説明します。
+Swift Macroを実装するためのパッケージ構成とプラグイン登録について説明する。
 
 ## ディレクトリ構造
 
@@ -86,7 +86,7 @@ let package = Package(
 | Swift 5.10 | 510.0.0 ~ |
 | Swift 6.0 | 600.0.0 ~ |
 
-> **Note**: Swiftのメジャーバージョンとswift-syntaxのバージョンは対応しています。
+> **Note**: Swiftのメジャーバージョンとswift-syntaxのバージョンは対応している。
 
 ### 必要なProduct
 
@@ -100,7 +100,7 @@ let package = Package(
 
 ## プラグイン登録（Plugin.swift）
 
-マクロをコンパイラに登録するエントリーポイントです。
+マクロをコンパイラに登録するエントリーポイント。
 
 ```swift
 import SwiftCompilerPlugin
@@ -125,7 +125,7 @@ struct MyMacroPlugin: CompilerPlugin {
 
 ## マクロ宣言（Macros.swift）
 
-公開APIとしてマクロを宣言します。
+公開APIとしてマクロを宣言する。
 
 ```swift
 // Sources/MyLibrary/Macros.swift

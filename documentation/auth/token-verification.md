@@ -1,6 +1,6 @@
 # トークン検証
 
-AuthClientを使用したFirebase IDトークンの検証です。
+AuthClientを使用したFirebase IDトークンの検証。
 
 ## クライアントの初期化
 
@@ -63,7 +63,7 @@ let verifiedToken = try await authClient.verifyAuthorizationHeader(authHeader)
 
 ## 検証内容
 
-トークン検証では以下をチェックします：
+トークン検証では以下をチェックする：
 
 1. **JWT形式**: 3パートに分割可能か
 2. **アルゴリズム**: RS256であるか

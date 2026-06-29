@@ -1,6 +1,6 @@
 # swift-firebase-server ドキュメント
 
-サーバーサイドSwift向けFirebase REST APIクライアントの詳細ドキュメントです。
+サーバーサイドSwift向けFirebase REST APIクライアントの詳細ドキュメント。
 
 ## ガイド
 

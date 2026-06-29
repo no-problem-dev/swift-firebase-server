@@ -1,6 +1,6 @@
 # Storage スキーマ定義
 
-`@StorageSchema`、`@Folder`、`@Object` マクロを使用して、Cloud Storageの構造を型安全に定義します。
+`@StorageSchema`、`@Folder`、`@Object` マクロを使用して、Cloud Storageの構造を型安全に定義する。
 
 ## 基本的なスキーマ
 
@@ -31,7 +31,7 @@ let profilePath = schema.images.profile("user123", .jpg)
 
 ## @StorageSchema
 
-スキーマのルートを定義します。`StorageClient` を保持し、子フォルダへのアクセスを提供します。
+スキーマのルートを定義する。`StorageClient` を保持し、子フォルダへのアクセスを提供する。
 
 ```swift
 @StorageSchema
@@ -46,7 +46,7 @@ let schema = AppStorage(client: storageClient)
 
 ## @Folder
 
-フォルダ構造を定義します。ネストして階層を表現できます。
+フォルダ構造を定義する。ネストして階層を表現できる。
 
 ```swift
 @StorageSchema
@@ -86,7 +86,7 @@ schema.images.books.cover("book456", .jpg)
 
 ## @Object
 
-ファイル（オブジェクト）のパターンを定義します。IDと拡張子を指定してパスを生成できます。
+ファイル（オブジェクト）のパターンを定義する。IDと拡張子を指定してパスを生成できる。
 
 ```swift
 @Folder("documents")

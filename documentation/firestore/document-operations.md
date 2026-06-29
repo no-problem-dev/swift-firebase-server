@@ -1,6 +1,6 @@
 # ドキュメント操作
 
-スキーマベースの型安全なCRUD操作です。
+スキーマベースの型安全なCRUD操作。
 
 ## セットアップ
 
@@ -107,12 +107,12 @@ let allUsers = try await schema.users.execute(schema.users.query())
 let activeUsers = try await schema.users.execute(
     schema.users.query()
         .filter { Field("status") == "active" }
-        .order(by: "createdAt", direction: .descending)
+        .order(by: FieldPath("createdAt"), direction: .descending)
         .limit(to: 20)
 )
 ```
 
-詳細は [クエリ](queries.md) を参照してください。
+詳細は [クエリ](queries.md) を参照。
 
 ## エラーハンドリング
 

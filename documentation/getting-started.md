@@ -1,13 +1,13 @@
 # クイックスタート
 
-5分でswift-firebase-serverをセットアップします。
+5分でswift-firebase-serverをセットアップする。
 
 ## インストール
 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.0"))
+    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.17"))
 ]
 
 .target(

@@ -1,10 +1,10 @@
 # マクロのテスト手法
 
-Swift Macroのテスト方法について説明します。
+Swift Macroのテスト方法について説明する。
 
 ## 概要
 
-マクロのテストには主に2つのアプローチがあります：
+マクロのテストには主に2つのアプローチがある：
 
 1. **assertMacroExpansion**: Apple公式のSwiftSyntaxテストツール
 2. **swift-macro-testing**: [Point-Free](https://github.com/pointfreeco/swift-macro-testing)によるサードパーティツール
@@ -271,7 +271,7 @@ func testAddAsyncFixIt() throws {
 
 ## swift-macro-testing（サードパーティ）
 
-[Point-Free](https://www.pointfree.co/blog/posts/114-a-new-tool-for-testing-macros-in-swift)による改良されたテストツール。診断をソースコードにインラインで表示します。
+[Point-Free](https://www.pointfree.co/blog/posts/114-a-new-tool-for-testing-macros-in-swift)による改良されたテストツール。診断をソースコードにインラインで表示する。
 
 ### 利点
 
@@ -417,7 +417,7 @@ func testComplexInput() throws {
 
 ### 5. ホワイトスペースに注意
 
-展開結果の比較では空白やインデントが重要です。期待値を正確に記述してください。
+展開結果の比較では空白やインデントが重要。期待値を正確に記述する。
 
 ```swift
 // インデントを正確に
@@ -442,7 +442,7 @@ struct User {
 
 ### テスト失敗時
 
-`assertMacroExpansion` は期待値と実際の展開結果の差分を表示します。差分を確認して期待値を修正してください。
+`assertMacroExpansion` は期待値と実際の展開結果の差分を表示する。差分を確認し、期待値を修正する。
 
 ## 参考リンク
 

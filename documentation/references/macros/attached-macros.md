@@ -1,10 +1,10 @@
 # Attached Macro（付与型マクロ）
 
-`@MacroName` の形式で宣言に付与するマクロです。
+`@MacroName` の形式で宣言に付与するマクロ。
 
 ## 概要
 
-Attached Macroは特定の宣言に付与され、その宣言を拡張・変換します。[SE-0389](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0389-attached-macros.md) で導入。
+Attached Macroは特定の宣言に付与され、その宣言を拡張・変換する。[SE-0389](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0389-attached-macros.md) で導入。
 
 ## マクロ役割一覧
 
@@ -21,7 +21,7 @@ Attached Macroは特定の宣言に付与され、その宣言を拡張・変換
 
 ## Peer Macro
 
-宣言と同じスコープに新しい宣言を追加します。
+宣言と同じスコープに新しい宣言を追加する。
 
 ### 宣言
 
@@ -86,7 +86,7 @@ func fetchData() async -> Data { ... }
 
 ## Member Macro
 
-型定義にメンバー（プロパティ、メソッド、イニシャライザ等）を追加します。
+型定義にメンバー（プロパティ、メソッド、イニシャライザ等）を追加する。
 
 ### 宣言
 
@@ -174,7 +174,7 @@ struct User {
 
 ## MemberAttribute Macro
 
-型のメンバーに属性を追加します。
+型のメンバーに属性を追加する。
 
 ### 宣言
 
@@ -239,7 +239,7 @@ class Model {
 
 ## Accessor Macro
 
-プロパティにアクセサ（getter/setter/willSet/didSet）を追加します。
+プロパティにアクセサ（getter/setter/willSet/didSet）を追加する。
 
 ### 宣言
 
@@ -309,7 +309,7 @@ struct Settings {
 
 ## Extension Macro
 
-型にextensionを追加します。[SE-0402](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0402-extension-macros.md) で導入。
+型にextensionを追加する。[SE-0402](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0402-extension-macros.md) で導入。
 
 ### 宣言
 
@@ -392,7 +392,7 @@ macro MyMacro() = ...
 
 ## Body Macro
 
-関数の本体を生成・置換します。[SE-0415](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0415-function-body-macros.md) で導入。
+関数の本体を生成・置換する。[SE-0415](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0415-function-body-macros.md) で導入。
 
 ### 宣言
 
@@ -470,7 +470,7 @@ macro Codable() = ...
 
 ## 複数の役割を持つマクロ
 
-1つのマクロが複数の役割を持てます：
+1つのマクロが複数の役割を持てる：
 
 ```swift
 @attached(member, names: named(init))
