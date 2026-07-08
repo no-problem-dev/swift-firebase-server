@@ -27,13 +27,21 @@ public final class FirestoreClient: Sendable {
     /// Firestore設定
     public let configuration: FirestoreConfiguration
 
-    /// 認証トークン
+    /// 認証トークン（初期化時の値）
+    ///
+    /// - Important: このプロパティは初期化時点のトークンであり、時間経過とともに失効する。
+    ///   Long-lived な Cloud Run インスタンスでは 1 時間後に 401 Unauthenticated を返すため、
+    ///   内部 API コールでは毎リクエスト `tokenSource.currentToken()` から最新を取得している。
+    /// - Note: 後方互換のために残されている。外部利用は非推奨。
     public let token: String
 
     /// データベースパス
     public var database: DatabasePath {
         configuration.database
     }
+
+    /// トークン取得戦略（リクエストごとに最新を取得するための分岐）
+    internal let tokenSource: TokenSource
 
     /// HTTPクライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
@@ -72,6 +80,7 @@ public final class FirestoreClient: Sendable {
             )
         }
         self.token = resolved.token
+        self.tokenSource = TokenSource(config: config, resolvedToken: resolved.token)
         self.httpClientProvider = HTTPClientProvider()
     }
 
@@ -85,9 +94,11 @@ public final class FirestoreClient: Sendable {
         case .emulator(let projectId):
             self.configuration = FirestoreConfiguration.emulator(projectId: projectId)
             self.token = "owner"
+            self.tokenSource = .emulator
         case .explicit(let projectId, let token):
             self.configuration = FirestoreConfiguration(projectId: projectId)
             self.token = token
+            self.tokenSource = .staticToken(token)
         }
         self.httpClientProvider = HTTPClientProvider()
     }
@@ -121,6 +132,7 @@ public final class FirestoreClient: Sendable {
                 keyDecodingStrategy: keyDecodingStrategy
             )
             self.token = "owner"
+            self.tokenSource = .emulator
         case .explicit(let projectId, let token):
             self.configuration = FirestoreConfiguration(
                 projectId: projectId,
@@ -128,6 +140,7 @@ public final class FirestoreClient: Sendable {
                 keyDecodingStrategy: keyDecodingStrategy
             )
             self.token = token
+            self.tokenSource = .staticToken(token)
         }
         self.httpClientProvider = HTTPClientProvider()
     }

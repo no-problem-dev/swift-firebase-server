@@ -7,7 +7,15 @@
 
 ## [未リリース]
 
-なし
+### 修正
+
+- **🔴 認証トークンの時間経過による失効**: `FirestoreClient` / `StorageClient` が初期化時のアクセストークンを使い続け、長期稼働する Cloud Run インスタンスで 1 時間経過後に全リクエストが `401 Unauthenticated` で失敗する問題を解消
+  - **症状**: Cloud Run instance が 1 時間以上生きると、その instance が捌く全 Firestore / Storage リクエストが `Unauthenticated` エラーで失敗。新しい instance が spawn されるまで復旧せず、間欠的に 500 エラーが発生
+  - **根本原因**: `public let token: String` が init 時のスナップショットで固定され、`GCPEnvironment` 側の cache refresh 機構が反映されていなかった
+  - **修正**: 新設の内部型 `TokenSource` で token 取得戦略を表現し、全リクエスト発行時に `tokenSource.currentToken()` を通じて最新トークンを取得する実装に変更。`.auto` 系は `GCPEnvironment.shared.getAccessToken()` 経由（cache の 5 分バッファ refresh に追従）、`.emulator` / `.explicit` は従来通り静的トークン
+  - **後方互換**: `public let token: String` は残置（初期化時の値を返す。将来削除予定）
+  - 影響: `FirestoreClient.getDocument` / `createDocument` / `updateDocument` / `deleteDocument` / `listDocuments` / `runQueryRaw` / `StorageClient.upload` / `download` / `delete` / `getMetadata`
+  - `AuthAdminClient.deleteUser` は元から per-request fetch 実装で、本修正の対象外
 
 ## [1.0.17] - 2026-01-17
 
