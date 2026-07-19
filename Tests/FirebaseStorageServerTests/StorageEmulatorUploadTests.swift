@@ -5,14 +5,35 @@ import NIOCore
 @testable import FirebaseStorageServer
 @testable import Internal
 
-@Suite("Storage Emulator Upload Tests")
+/// Storage エミュレーター（localhost:9199）に TCP 接続できるかを確認する。
+/// この suite は実エミュレーターへの統合テストであり、未起動の環境では前提が成立しない。
+private func storageEmulatorIsReachable() -> Bool {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    guard fd >= 0 else { return false }
+    defer { close(fd) }
+    var addr = sockaddr_in()
+    addr.sin_family = sa_family_t(AF_INET)
+    addr.sin_port = in_port_t(9199).bigEndian
+    addr.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+    let result = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    return result == 0
+}
+
+@Suite(
+    "Storage Emulator Upload Tests",
+    .enabled(if: storageEmulatorIsReachable(), "Firebase Storage エミュレーター（localhost:9199）が起動していない")
+)
 struct StorageEmulatorUploadTests {
 
     /// エミュレーターへの実際のアップロードテスト
     /// 実際のHTTPレスポンスをキャプチャして内容を確認
     @Test("Emulator upload - raw response capture")
     func emulatorUploadRawResponse() async throws {
-        // エミュレーターが起動していることを前提とする
+        // エミュレーターが起動していることを前提とする（suite の enabled 条件で検査済み）
         let client = try await StorageClient(
             .emulator(projectId: "reading-memory"),
             bucket: "reading-memory.appspot.com"
@@ -62,7 +83,19 @@ struct StorageEmulatorUploadTests {
     @Test("Emulator upload - direct HTTP request")
     func emulatorDirectHTTPRequest() async throws {
         let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+        // HTTPClient は shutdown せずに deinit すると fatalError でプロセスごと落ちる。
+        // リクエストが throw する経路でも必ず一度だけ shutdown してから結果を返す。
+        var failure: Error?
+        do {
+            try await runDirectHTTPRequest(httpClient)
+        } catch {
+            failure = error
+        }
+        try await httpClient.shutdown()
+        if let failure { throw failure }
+    }
 
+    private func runDirectHTTPRequest(_ httpClient: HTTPClient) async throws {
         let bucket = "reading-memory.appspot.com"
         let path = "test/direct-upload-\(UUID().uuidString).jpg"
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
@@ -123,8 +156,6 @@ struct StorageEmulatorUploadTests {
         }
 
         #expect(response.status == .ok, "Expected 200 OK response from emulator")
-
-        try await httpClient.shutdown()
     }
 }
 
