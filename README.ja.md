@@ -98,11 +98,11 @@ dependencies: [
 
 ### API リファレンス（DocC）
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API クライアント
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - 型安全なスキーマ DSL
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage クライアント
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - 型安全な Storage スキーマ DSL
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID トークン検証
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) - Firestore REST API クライアント
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) - 型安全なスキーマ DSL
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) - Cloud Storage クライアント
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) - 型安全な Storage スキーマ DSL
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) - ID トークン検証
 
 ### 技術リファレンス
 

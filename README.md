@@ -98,11 +98,11 @@ dependencies: [
 
 ### API Reference (DocC)
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/) - Firestore REST API client
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/) - Type-safe schema DSL
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/) - Cloud Storage client
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/) - Type-safe Storage schema DSL
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/) - ID token verification
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) - Firestore REST API client
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) - Type-safe schema DSL
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) - Cloud Storage client
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) - Type-safe Storage schema DSL
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) - ID token verification
 
 ### Technical Reference
 
