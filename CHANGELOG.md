@@ -1,71 +1,92 @@
-# 変更履歴
+# Changelog
 
-このプロジェクトの全ての重要な変更はこのファイルに記録されます。
+All notable changes to this project are recorded in this file.
 
-フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
-このプロジェクトは [セマンティックバージョニング](https://semver.org/lang/ja/spec/v2.0.0.html) に準拠しています。
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [未リリース]
+## [Unreleased]
 
-### 破壊的変更
+### Breaking Changes
 
-- **`updateDocument` を `setDocument` と `updateDocument` に分割**
-  - `setDocument(_:data:)` / `setDocument(_:fields:)`: 従来の `updateDocument` と同じ全置換（`updateMask` なし・存在前提なし）。無い場合は作成される
-  - `updateDocument(_:data:)` / `updateDocument(_:fields:)`: `updateMask.fieldPaths` に渡したフィールドだけを載せ、`currentDocument.exists=true` を付ける部分更新。渡していないフィールドは残り、ドキュメントが無ければ 404
-  - 空の `fields` は `FirestoreError.api(.invalidArgument)`。マスク無しの全置換に化けるため
-  - `FirestoreSchema` の `DocumentHandle.update(data:)` は部分更新になり、全置換は `set(data:)` に移動
-- **カーソルの内外が逆だったのを修正**: `start(at:)` は `before: true`（境界を含む）、`start(after:)` は `before: false`（境界を除く）。`end(at:)` / `end(before:)` は変更なし
-- **エミュレーターモードでも検証する**: `IDTokenVerifier` はエミュレーター設定でも `exp` / `iat` / `auth_time` / `aud` / `iss` / `sub` を検証する（署名だけが検証できない）。本番経路では署名検証をクレーム検証より先に行う
-- **使われていないエラーケースを削除**: `AuthError.verificationFailed`、`StorageError.fileTooLarge` / `.invalidContentType`、`GCPAuthError.providerNotInitialized` / `.environmentDetectionFailed`、`FirestoreEncodingError.unsupportedType`
-- **`AuthAdminClient` から未使用の `httpClientProvider` を削除**: 保持するだけで `URLSession.shared` を使っていた。`init(projectId:httpClientProvider:)` も削除
+- **Split `updateDocument` into `setDocument` and `updateDocument`**
+  - `setDocument(_:data:)` / `setDocument(_:fields:)`: the full replacement the old `updateDocument` did (no `updateMask`, no assumption that the document exists). If it does not exist, it is created
+  - `updateDocument(_:data:)` / `updateDocument(_:fields:)`: a partial update that sends only the fields given in `updateMask.fieldPaths` and adds `currentDocument.exists=true`. Fields not given are left alone, and a missing document is a 404
+  - Empty `fields` is now `FirestoreError.api(.invalidArgument)`, because it would otherwise turn into a maskless full replacement
+  - `FirestoreSchema`'s `DocumentHandle.update(data:)` becomes a partial update; full replacement moves to `set(data:)`
+- **Fixed the cursor boundaries being inverted**: `start(at:)` is `before: true` (inclusive), `start(after:)` is `before: false` (exclusive). `end(at:)` / `end(before:)` are unchanged
+- **Verification happens in emulator mode too**: `IDTokenVerifier` checks `exp` / `iat` / `auth_time` / `aud` / `iss` / `sub` under an emulator configuration as well (only the signature cannot be verified). On the production path the signature is verified before the claims
+- **Removed unused error cases**: `AuthError.verificationFailed`, `StorageError.fileTooLarge` / `.invalidContentType`, `GCPAuthError.providerNotInitialized` / `.environmentDetectionFailed`, `FirestoreEncodingError.unsupportedType`
+- **Removed the unused `httpClientProvider` from `AuthAdminClient`**: it was held but `URLSession.shared` was used. `init(projectId:httpClientProvider:)` is removed too
 
-### 修正
+### Fixed
 
-- **Storage のオブジェクト名を完全にパーセントエンコードする**: `.urlPathAllowed` は `/` `&` `+` を残すため、`o/{object}` がネストしたパスで解決せず、アップロードの `name` も変わっていた
-- **Storage のパス検証**: 空・`.`・`..`・改行を含む名前は `StorageError.invalidPath` でリクエスト前に弾く
-- **`FirestoreEncoder` が入れ子コンテナを捨てていた**: 手書きの `encode(to:)` で `nestedContainer` / `nestedUnkeyedContainer` / `superEncoder` を使うとフィールドが黙って消えていた。親へ書き戻すよう内部を作り直した
-- **`@FirestoreModel` が省略記法の getter を格納プロパティ扱いしていた**: `var x: Int { 1 }` に `CodingKeys` と `Fields` が生えていた。`static` / `class` プロパティも除外する
-- **パスセグメントを検証する**: `.` / `..` / `__.*__` / 1,500 バイト超は `PathError.invalidCharacters`
-- **コーディング失敗を `FirestoreError` で包む**: デコード失敗は `.decoding`、エンコード失敗は `.encoding`
-- **クエリ値をエスケープする**: `createDocument` の `documentId` と `listDocuments` の `pageToken`
+- **Storage object names are percent-encoded in full**: `.urlPathAllowed` leaves `/`, `&` and `+` alone, so `o/{object}` did not resolve for a nested path, and the `name` sent on upload was wrong too
+- **Storage path validation**: a name that is empty, `.`, `..`, or contains a newline is rejected with `StorageError.invalidPath` before the request goes out
+- **`FirestoreEncoder` threw away nested containers**: fields disappeared silently when a hand-written `encode(to:)` used `nestedContainer` / `nestedUnkeyedContainer` / `superEncoder`. The internals were rebuilt to write back to the parent
+- **`@FirestoreModel` treated a shorthand getter as a stored property**: `var x: Int { 1 }` grew `CodingKeys` and `Fields`. `static` and `class` properties are now excluded as well
+- **Path segments are validated**: `.` / `..` / `__.*__` / over 1,500 bytes is `PathError.invalidCharacters`
+- **Coding failures are wrapped in `FirestoreError`**: `.decoding` for a decode failure, `.encoding` for an encode failure
+- **Query values are escaped**: `documentId` in `createDocument` and `pageToken` in `listDocuments`
+
+## [1.1.0] - 2026-07-19
+
+### Added
+
+- A DocC catalogue.
+
+### Changed
+
+- The public errors are now proper error types.
+- Documentation comments and DocC rewritten in Japanese; README unified as a Japanese and
+  English pair; the prose in the `documentation/` guides made consistent.
+- CI workflows synced to the standard SSOT template (tests + release-on-tag; the old
+  auto-release is gone). DocC is built as combined documentation across every library, on
+  macos-26 / Xcode 26 (Swift 6.2), and deployed to GitHub Pages via `actions/deploy-pages`.
+
+### Fixed
+
+- A missing `@_exported`.
+- Corrected examples in the documentation.
+- A process crash and the preconditions in the emulator integration tests.
 
 ## [1.0.17] - 2026-01-17
 
-### 修正
+### Fixed
 
-- **Linux互換性**: `AuthAdminClient` に `FoundationNetworking` インポートを追加
-  - Linux環境で `URLRequest` と `URLSession.shared` が利用可能に
-  - Cloud Run (Linux) でのビルドエラーを解消
+- **Linux compatibility**: added the `FoundationNetworking` import to `AuthAdminClient`
+  - `URLRequest` and `URLSession.shared` are available on Linux
+  - Resolves the build error on Cloud Run (Linux)
 
 ## [1.0.16] - 2026-01-17
 
-### 追加
+### Added
 
-- **Cloud Audit Logs サポート**: Firebase Auth イベントを Cloud Audit Logs 経由で受信
-  - `CloudAuditLogEvent`: Cloud Audit Logs イベントペイロード型
-    - `isIdentityPlatformSignUp`: Identity Platform サインアップイベント判定
-    - `signedUpUserId`: サインアップしたユーザーID抽出
-    - `signedUpUserEmail`: サインアップしたユーザーメール抽出
-  - `CloudEventHeaders.AuditLogEventType`: Cloud Audit Logs イベントタイプ定数
-  - `CloudEventHeaders.IdentityPlatformService`: Identity Platform サービス定数
+- **Cloud Audit Logs support**: receive Firebase Auth events through Cloud Audit Logs
+  - `CloudAuditLogEvent`: the Cloud Audit Logs event payload type
+    - `isIdentityPlatformSignUp`: whether this is an Identity Platform sign-up event
+    - `signedUpUserId`: the user ID of whoever signed up
+    - `signedUpUserEmail`: the email of whoever signed up
+  - `CloudEventHeaders.AuditLogEventType`: Cloud Audit Logs event type constants
+  - `CloudEventHeaders.IdentityPlatformService`: Identity Platform service constants
 
-- **Firestore Protobuf デコーダー**: Eventarc Firestore イベントの Protobuf 形式に対応
-  - `FirestoreProtobufDecoder`: Protobuf バイナリ → `FirestoreDocumentEvent` 変換
-  - google-cloudevents proto 定義を同梱
-  - `swift-protobuf` 依存関係を追加
+- **Firestore Protobuf decoder**: handles the Protobuf form of Eventarc Firestore events
+  - `FirestoreProtobufDecoder`: Protobuf binary → `FirestoreDocumentEvent`
+  - The google-cloudevents proto definitions are bundled
+  - Added the `swift-protobuf` dependency
 
-- **型の初期化改善**: プログラム的なインスタンス生成に対応
-  - `AuthUserCreatedEvent`: 公開イニシャライザを追加
-  - `FirestoreValue`: 各値型の公開イニシャライザを追加
+- **Better initialisation**: types can be constructed programmatically
+  - `AuthUserCreatedEvent`: added a public initialiser
+  - `FirestoreValue`: added a public initialiser for each value type
 
-### 依存関係
+### Dependencies
 
-- `apple/swift-protobuf` 1.33.0+ を追加
+- Added `apple/swift-protobuf` 1.33.0+
 
-### 使用例
+### Example
 
 ```swift
-// Cloud Audit Logs（Auth）
+// Cloud Audit Logs (Auth)
 routes.webhook("user-created", body: CloudAuditLogEvent.self) { request in
     guard request.body.isIdentityPlatformSignUp else { return .badRequest }
     guard let userId = request.body.signedUpUserId else { return .badRequest }
@@ -84,19 +105,19 @@ routes.webhookRaw("chat-created") { request in
 
 ## [1.0.15] - 2026-01-17
 
-### 追加
+### Added
 
-- **EventarcServer モジュール**: Google Cloud Eventarc イベント（CloudEvents形式）のハンドリング
-  - `CloudEventHeaders`: CloudEvents HTTP ヘッダーのパース
-    - `ce-type`, `ce-source`, `ce-id`, `ce-time`, `ce-subject`, `ce-specversion` に対応
-  - `AuthUserCreatedEvent`: Firebase Auth ユーザー作成イベントペイロード
-    - `uid`, `email`, `displayName`, `metadata` 等のフィールド
-  - `FirestoreDocumentEvent`: Firestore ドキュメントイベント
-    - ドキュメント作成・更新イベントに対応
-    - `value`（現在の値）と `oldValue`（更新前の値）をサポート
-    - `extractPathParams(pattern:)` によるパスパラメータ抽出
+- **EventarcServer module**: handling for Google Cloud Eventarc events (the CloudEvents format)
+  - `CloudEventHeaders`: parses the CloudEvents HTTP headers
+    - Handles `ce-type`, `ce-source`, `ce-id`, `ce-time`, `ce-subject`, `ce-specversion`
+  - `AuthUserCreatedEvent`: the Firebase Auth user-created event payload
+    - Fields such as `uid`, `email`, `displayName`, `metadata`
+  - `FirestoreDocumentEvent`: a Firestore document event
+    - Handles document created and document updated events
+    - Supports `value` (the current value) and `oldValue` (the value before the update)
+    - Path parameter extraction with `extractPathParams(pattern:)`
 
-### イベントタイプ定数
+### Event type constants
 
 ```swift
 CloudEventHeaders.AuthEventType.userCreated
@@ -109,7 +130,7 @@ CloudEventHeaders.FirestoreEventType.documentUpdated
 // → "google.cloud.firestore.document.v1.updated"
 ```
 
-### パスパラメータ抽出
+### Path parameter extraction
 
 ```swift
 let event: FirestoreDocumentEvent = ...
@@ -121,48 +142,48 @@ let params = event.extractPathParams(
 
 ## [1.0.14] - 2026-01-17
 
-### 追加
+### Added
 
-- **AuthAdminClient** - Firebase Auth Admin API によるユーザー削除機能
-  - `deleteUser(uid:)` - 指定されたユーザーをFirebase Authから削除
-  - Firebase Emulator 対応
-  - 冪等性対応（存在しないユーザーでもエラーにならない）
+- **AuthAdminClient** — user deletion through the Firebase Auth Admin API
+  - `deleteUser(uid:)` — deletes the given user from Firebase Auth
+  - Works with the Firebase Emulator
+  - Idempotent (a user that does not exist is not an error)
 
-### 修正
+### Fixed
 
-- **AuthAdminClient** - 正しい Firebase Auth REST API エンドポイントを使用
-  - `DELETE /accounts/{uid}` → `POST /accounts:delete` に修正
-  - リクエストボディに `{ "localId": uid }` を含める形式に対応
+- **AuthAdminClient** — uses the correct Firebase Auth REST API endpoint
+  - `DELETE /accounts/{uid}` → `POST /accounts:delete`
+  - The request body now carries `{ "localId": uid }`
 
 ## [1.0.13] - 2026-01-11
 
-### 修正
+### Fixed
 
-- **Firebase Storage Emulator 対応** - エミュレーター環境でのファイルアップロードをサポート
-  - `StorageObject.fromJSON()` で `id` フィールドがない場合のフォールバック処理を追加
-  - エミュレーターが返す `generation` フィールドから `id` を生成
-  - `size` フィールドの文字列/整数両方の形式に対応
-  - エラーメッセージに実際のレスポンス内容を含めるよう改善
+- **Firebase Storage Emulator** — file upload works against the emulator
+  - `StorageObject.fromJSON()` falls back when there is no `id` field
+  - The `id` is derived from the `generation` field the emulator returns
+  - The `size` field is accepted as either a string or an integer
+  - Error messages now include the actual response
 
 ## [1.0.12] - 2026-01-09
 
-### 追加
+### Added
 
-- **型安全な FieldPath API** - Query API でのフィールド参照を型安全に
-  - `FieldPath<Model>` - ジェネリック構造体でモデルとフィールドを紐付け
-  - `@FirestoreModel` マクロが `Fields` enum を自動生成
-  - `order(by:)`, `whereField()`, `select()` が `FieldPath<T>` を受け付け
-  - コンパイル時にフィールド名の誤りを検出可能
+- **Type-safe FieldPath API** — field references in the Query API are type-safe
+  - `FieldPath<Model>` — a generic struct tying a model to a field
+  - The `@FirestoreModel` macro generates a `Fields` enum
+  - `order(by:)`, `whereField()` and `select()` take a `FieldPath<T>`
+  - A wrong field name is caught at compile time
 
-### 変更
+### Changed
 
-- **Query API シグネチャ変更** - String から FieldPath<T> に変更
+- **Query API signatures** — String replaced by FieldPath<T>
   - `order(by field: FieldPath<T>, direction:)`
-  - `whereField(_ field: FieldPath<T>, isEqualTo:)` 等
+  - `whereField(_ field: FieldPath<T>, isEqualTo:)` and so on
 
-### 破壊的変更
+### Breaking Changes
 
-- Query メソッドのフィールド指定が `String` から `Model.Fields.fieldName` 形式に変更
+- Query methods take a field as `Model.Fields.fieldName` rather than a `String`
   ```swift
   // Before
   .order(by: "updated_at", direction: .descending)
@@ -173,182 +194,182 @@ let params = event.extractPathParams(
 
 ## [1.0.11] - 2026-01-07
 
-### 修正
+### Fixed
 
-- **Query.where() フィルターチェーン問題** - whereField()をチェーンした際にフィルターが上書きされる問題を修正
-  - 以前: 複数のwhereField()呼び出しで最後のフィルターのみ適用される
-  - 修正後: 複数のフィルターがANDで正しく結合される
-  - 例: `.whereField("timestamp", isGreaterThanOrEqualTo: from).whereField("timestamp", isLessThan: to)` が正しく動作
+- **Query.where() filter chaining** — chained `whereField()` calls overwrote each other
+  - Before: only the last of several `whereField()` calls applied
+  - After: several filters combine correctly with AND
+  - e.g. `.whereField("timestamp", isGreaterThanOrEqualTo: from).whereField("timestamp", isLessThan: to)` now works
 
 ## [1.0.10] - 2026-01-02
 
-### 変更
+### Changed
 
-- **Swift 6.2 対応**: Swift 6.2 安定版に対応
+- **Swift 6.2**: supports the stable release of Swift 6.2
   - `swift-tools-version`: 6.0 → 6.2
   - `swift-syntax`: 600.0.0 → 602.0.0
   - `swift-crypto`: 3.0.0 → 4.0.0
-  - 依存関係指定を `.upToNextMajor` に統一
+  - Dependency requirements unified on `.upToNextMajor`
 
-### 追加
+### Added
 
-- **CI テストワークフロー**: macOS および Linux x86_64 でのテストを追加
+- **CI test workflow**: tests on macOS and Linux x86_64
   - macOS 15 (Swift 6.2)
   - Linux x86_64 (swift:6.2-bookworm)
 
 ## [1.0.9] - 2026-01-02
 
-### 変更
+### Changed
 
-- **Swift 6.0 にダウングレード** - Swift 6.2 nightly のコンパイラバグを回避
-  - swift-configuration の FileProvider で発生する SIL 検証エラーを解消
+- **Downgraded to Swift 6.0** — to avoid a compiler bug in Swift 6.2 nightly
+  - Resolves the SIL verification error coming out of swift-configuration's FileProvider
 
 ## [1.0.8] - 2025-12-13
 
-### 追加
-- **GCPConfiguration enum** - 排他的な認証設定API
-  - `.auto` - Cloud Run / ローカル gcloud 自動検出（async）
-  - `.autoWithDatabase(databaseId:)` - カスタムデータベースID対応
-  - `.emulator(projectId:)` - エミュレーター用（sync、token自動設定）
-  - `.explicit(projectId:token:)` - 明示的なprojectId/token指定（sync）
-- **GCPEnvironment actor** - 環境検出とcredentials取得のシングルトン
-- **MetadataServerClient.fetchProjectId()** - Cloud RunでprojectId自動取得
-- **LocalAuthClient.fetchProjectId()** - gcloud CLIでprojectId自動取得
-- **FirestoreClient key encoding/decoding** - `keyEncodingStrategy` / `keyDecodingStrategy` サポート
+### Added
+- **GCPConfiguration enum** — an exclusive API for authentication configuration
+  - `.auto` — automatic detection of Cloud Run / local gcloud (async)
+  - `.autoWithDatabase(databaseId:)` — for a custom database ID
+  - `.emulator(projectId:)` — for the emulator (sync, token set automatically)
+  - `.explicit(projectId:token:)` — an explicit projectId/token (sync)
+- **GCPEnvironment actor** — a singleton for environment detection and credential retrieval
+- **MetadataServerClient.fetchProjectId()** — gets the projectId automatically on Cloud Run
+- **LocalAuthClient.fetchProjectId()** — gets the projectId automatically through the gcloud CLI
+- **FirestoreClient key encoding/decoding** — `keyEncodingStrategy` / `keyDecodingStrategy` support
 
-### 変更
-- **@FirestoreSchema マクロ** - enum から struct ベースに変更
-  - `Schema.Instance(client:)` → `Schema(client:)` の直接初期化
-  - MemberMacro + ExtensionMacro の組み合わせで実装
-  - より直感的で型推論が効くAPI
-- **ドキュメント全面更新** - スキーマベースAPIに統一
-  - `schema.users.document(id).get()` 形式の新API例
-  - README、getting-started、document-operations、queries、schema-definition を更新
+### Changed
+- **@FirestoreSchema macro** — moved from enum-based to struct-based
+  - `Schema.Instance(client:)` → direct initialisation with `Schema(client:)`
+  - Implemented as a MemberMacro plus an ExtensionMacro
+  - A more intuitive API, and type inference works
+- **Documentation rewritten throughout** — unified on the schema-based API
+  - New API examples in the `schema.users.document(id).get()` form
+  - README, getting-started, document-operations, queries and schema-definition all updated
 
-### 削除
-- **AccessTokenProvider** - GCPEnvironmentに統合
-- **AutoAuthOperations** - クライアントがtokenを保持する設計に変更
-- **全operationのauthorizationパラメータ** - 不要に
+### Removed
+- **AccessTokenProvider** — folded into GCPEnvironment
+- **AutoAuthOperations** — the client holds the token now
+- **The authorization parameter on every operation** — no longer needed
 
-### 破壊的変更
-- FirestoreClient / StorageClient の初期化シグネチャ変更
-- 全CRUD操作から authorization パラメータ削除
-- `@FirestoreSchema` は `enum` ではなく `struct` に適用
-- `Schema.Instance(client:)` → `Schema(client:)` に変更
+### Breaking Changes
+- The initialiser signatures of FirestoreClient / StorageClient changed
+- The authorization parameter is gone from every CRUD operation
+- `@FirestoreSchema` applies to a `struct`, not an `enum`
+- `Schema.Instance(client:)` → `Schema(client:)`
 
 ## [1.0.7] - 2025-12-12
 
-### 追加
-- **@FirestoreModel マクロ** - Firestore モデル定義用マクロを新規追加
-  - `keyStrategy: .snakeCase` で camelCase → snake_case 自動変換
-  - `@Field("custom_key")` でカスタムフィールド名指定
-  - `@FieldIgnore` でエンコード/デコード対象から除外
-  - `FirestoreModelProtocol` への自動準拠と `Codable` 適合
-  - `CodingKeys` enum の自動生成
+### Added
+- **@FirestoreModel macro** — a new macro for defining Firestore models
+  - `keyStrategy: .snakeCase` converts camelCase → snake_case automatically
+  - `@Field("custom_key")` names a field explicitly
+  - `@FieldIgnore` excludes a property from encoding and decoding
+  - Automatic conformance to `FirestoreModelProtocol` and `Codable`
+  - Generates the `CodingKeys` enum
 
-- **KeyStrategy** - ランタイムでのキー変換戦略
-  - `FirestoreConfiguration` での設定サポート
-  - `.snakeCase` / `.useDefault` / `.custom` 変換に対応
+- **KeyStrategy** — a key conversion strategy at runtime
+  - Configurable through `FirestoreConfiguration`
+  - `.snakeCase` / `.useDefault` / `.custom`
 
-- **ドキュメント強化**
-  - Swift Macro リファレンス（6ドキュメント）を追加
-  - README に「できること」セクションを追加
-  - `docs/` → `documentation/` にリネーム（DocC出力と分離）
+- **Better documentation**
+  - Added a Swift Macro reference (6 documents)
+  - Added a "what you can do" section to the README
+  - Renamed `docs/` → `documentation/` (separating it from the DocC output)
 
-### 変更
-- **@Collection マクロの改善**
-  - `model:` パラメータで型関連付けを必須化
-  - `typealias Model = T` を自動生成
-  - ネスト検出の自動化（`lexicalContext` 使用）
-  - 3階層以上のネストに対応
+### Changed
+- **@Collection macro improvements**
+  - The `model:` parameter is now required, to tie the collection to a type
+  - `typealias Model = T` is generated
+  - Nesting is detected automatically (using `lexicalContext`)
+  - Handles nesting three levels deep and beyond
 
-### 削除
-- **@SubCollection マクロ** - `@Collection` のネストで代替可能なため廃止
+### Removed
+- **@SubCollection macro** — dropped, since nesting `@Collection` does the same thing
 
-### 破壊的変更
-- `@Collection` に `model:` パラメータが必須
-- `@SubCollection` マクロを削除（`@Collection` のネストで代替）
+### Breaking Changes
+- `@Collection` requires the `model:` parameter
+- The `@SubCollection` macro is removed (nest `@Collection` instead)
 
 ## [1.0.6] - 2025-12-11
 
-### 追加
-- **GCP 自動認証機能** - サービスアカウント認証の自動管理
-  - `AccessTokenProvider` - 環境に応じた認証トークン自動取得
-    - Cloud Run: メタデータサーバーから取得
-    - ローカル: gcloud CLI 経由で取得
-    - エミュレーター: ダミートークンを返す（認証スキップ）
-  - `AutoAuthOperations` - 認証トークンを自動取得する Firestore 操作メソッド群
-  - `TokenCache` - トークンキャッシュと自動リフレッシュ
-  - `MetadataServerClient` - Cloud Run メタデータサーバークライアント
-  - `LocalAuthClient` - gcloud CLI 経由のローカル認証クライアント
-  - `GCPAuthError` - GCP 認証関連エラー型
+### Added
+- **Automatic GCP authentication** — service account authentication managed automatically
+  - `AccessTokenProvider` — gets an auth token according to the environment
+    - Cloud Run: from the metadata server
+    - Local: through the gcloud CLI
+    - Emulator: returns a dummy token (authentication skipped)
+  - `AutoAuthOperations` — Firestore operations that fetch the auth token themselves
+  - `TokenCache` — token caching and automatic refresh
+  - `MetadataServerClient` — a client for the Cloud Run metadata server
+  - `LocalAuthClient` — a local authentication client using the gcloud CLI
+  - `GCPAuthError` — the GCP authentication error type
 
-- **Firebase Emulator サポート強化**
-  - `USE_FIREBASE_EMULATOR=true` または `FIRESTORE_EMULATOR_HOST` 環境変数で自動検出
-  - エミュレーターモードでは認証をスキップ（ダミートークン使用）
-  - JWT ヘッダーの `kid` フィールドをオプショナル化（エミュレーターは kid なし）
-  - 空の署名部分をサポート（エミュレータートークンは署名なし）
+- **Better Firebase Emulator support**
+  - Detected automatically from `USE_FIREBASE_EMULATOR=true` or `FIRESTORE_EMULATOR_HOST`
+  - Authentication is skipped in emulator mode (a dummy token is used)
+  - The JWT header's `kid` field is optional (the emulator does not send one)
+  - An empty signature part is supported (emulator tokens are unsigned)
 
-### 変更
-- **JWTDecoder** - `omittingEmptySubsequences: false` で空の署名部分を保持
-- **JWTHeader** - `kid` フィールドをオプショナルに変更
-- **IDTokenVerifier** - 本番モードでの `kid` 必須チェックを追加
+### Changed
+- **JWTDecoder** — `omittingEmptySubsequences: false`, to keep an empty signature part
+- **JWTHeader** — the `kid` field is optional
+- **IDTokenVerifier** — requires `kid` in production mode
 
-### 対象モジュール
-- FirestoreServer（AutoAuthOperations）
-- FirebaseAuthServer（JWT関連）
-- Internal（GCPAuth）
+### Affected modules
+- FirestoreServer (AutoAuthOperations)
+- FirebaseAuthServer (JWT)
+- Internal (GCPAuth)
 
 ## [1.0.5] - 2025-12-10
 
-### 修正
-- **Linux 互換性** - ByteBuffer → Data 変換をクロスプラットフォーム対応
-  - `NIOFoundationCompat` を使用した `ByteBuffer.toData()` 拡張メソッドを追加
-  - macOS専用の `Data(buffer:)` を全箇所で置換（17箇所）
-  - Docker (Linux) 環境でのビルド・実行を検証済み
-- **Swift 6 マクロ互換性** - Swift 6.2 での警告を解消
+### Fixed
+- **Linux compatibility** — ByteBuffer → Data conversion works cross-platform
+  - Added a `ByteBuffer.toData()` extension using `NIOFoundationCompat`
+  - Replaced the macOS-only `Data(buffer:)` everywhere (17 places)
+  - Building and running verified under Docker (Linux)
+- **Swift 6 macro compatibility** — cleared the warnings on Swift 6.2
 
-### 変更
-- **Internal モジュール** - `ByteBufferExtensions.swift` を追加
-  - `swift-nio` を明示的な依存関係として追加
-  - `NIOFoundationCompat` モジュールをインポート
+### Changed
+- **Internal module** — added `ByteBufferExtensions.swift`
+  - Added `swift-nio` as an explicit dependency
+  - Imports the `NIOFoundationCompat` module
 
-### 対象モジュール
-- FirestoreServer（DocumentOperations, QueryOperations）
-- FirebaseStorageServer（StorageClient）
-- FirebaseAuthServer（PublicKeyCache）
+### Affected modules
+- FirestoreServer (DocumentOperations, QueryOperations)
+- FirebaseStorageServer (StorageClient)
+- FirebaseAuthServer (PublicKeyCache)
 
 ## [1.0.4] - 2025-12-09
 
-### 変更
-- **アクセス修飾子の最適化** - 内部実装の型を `internal` に変更してカプセル化を改善
+### Changed
+- **Tightened access levels** — internal implementation types made `internal`, for better encapsulation
   - `JWTHeader`, `JWTPayload`, `JWTDecoder`, `DecodedJWT` (FirebaseAuthServer)
   - `FirestoreEncoder`, `FirestoreDecoder`, `FirestoreEncodingError`, `FirestoreDecodingError` (FirestoreServer)
   - `MacroError` (FirestoreMacros), `StorageMacroError` (FirebaseStorageMacros)
 
-### 追加
-- **DocC ドキュメント** - 全5モジュールの DocC ドキュメント生成を設定
+### Added
+- **DocC documentation** — DocC generation set up for all five modules
   - FirestoreServer, FirestoreSchema
   - FirebaseStorageServer, FirebaseStorageSchema
   - FirebaseAuthServer
-- GitHub Actions ワークフローを更新し、全ターゲットのドキュメントを生成
+- The GitHub Actions workflow generates documentation for every target
 
-### ドキュメント
-- README に各モジュールの DocC ドキュメントへの直接リンクを追加
+### Documentation
+- Direct links to each module's DocC documentation in the README
 
 ## [1.0.3] - 2025-12-09
 
-### 変更
-- **リポジトリ名変更**: `swift-firestore-server` → `swift-firebase-server`
-- **パッケージ名変更**: Firebase関連パッケージに統一的な命名規則を適用
+### Changed
+- **Repository renamed**: `swift-firestore-server` → `swift-firebase-server`
+- **Packages renamed**: a consistent naming rule for the Firebase-related packages
   - `StorageServer` → `FirebaseStorageServer`
   - `StorageSchema` → `FirebaseStorageSchema`
   - `StorageMacros` → `FirebaseStorageMacros`
   - `AuthServer` → `FirebaseAuthServer`
-- Firestoreパッケージは変更なし（FirestoreServer, FirestoreSchema, FirestoreMacros）
+- The Firestore packages are unchanged (FirestoreServer, FirestoreSchema, FirestoreMacros)
 
-### 移行ガイド
-パッケージのインポート文を更新してください：
+### Migration guide
+Update your import statements:
 ```swift
 // Before
 import StorageServer
@@ -363,93 +384,94 @@ import FirebaseAuthServer
 
 ## [1.0.2] - 2025-12-09
 
-### 追加
-- **AuthServer** - Firebase ID トークン検証クライアント
-  - `AuthClient` - IDトークン検証のメインエントリポイント
-  - `AuthConfiguration` - 本番環境/エミュレーター対応の設定
-  - `IDTokenVerifier` - JWT検証とRS256署名検証
-  - `PublicKeyCache` - Google公開鍵のキャッシュ（Cache-Control対応）
-  - `VerifiedToken` - 検証済みトークン情報（uid, email, signInProvider等）
-  - `JWTDecoder` - Base64URLデコードとJSONパース
-  - `AuthError` - Goバックエンド互換のエラーコード
+### Added
+- **AuthServer** — a Firebase ID token verification client
+  - `AuthClient` — the main entry point for ID token verification
+  - `AuthConfiguration` — configuration for production and for the emulator
+  - `IDTokenVerifier` — JWT verification and RS256 signature verification
+  - `PublicKeyCache` — caches Google's public keys (honouring Cache-Control)
+  - `VerifiedToken` — the verified token's information (uid, email, signInProvider and so on)
+  - `JWTDecoder` — Base64URL decoding and JSON parsing
+  - `AuthError` — error codes compatible with the Go backend
 
-### 機能
-- Firebase公式ドキュメントに準拠したIDトークン検証
-  - JWT形式検証（alg: RS256）
-  - クレーム検証（exp, iat, aud, iss, sub, auth_time）
-  - RS256署名検証（SwiftCrypto使用）
-- `verifyAuthorizationHeader()` - Bearerトークン抽出と検証
-- エミュレーターモード - 開発時の署名検証スキップ
+### Features
+- ID token verification following Firebase's official documentation
+  - JWT format verification (alg: RS256)
+  - Claim verification (exp, iat, aud, iss, sub, auth_time)
+  - RS256 signature verification (using SwiftCrypto)
+- `verifyAuthorizationHeader()` — extracts and verifies the Bearer token
+- Emulator mode — skips signature verification during development
 
-### 依存関係
-- `swift-crypto` 3.0.0+ を追加（RS256署名検証用）
+### Dependencies
+- Added `swift-crypto` 3.0.0+ (for RS256 signature verification)
 
 ## [1.0.1] - 2025-12-09
 
-### 追加
-- **FilterBuilder DSL** - ResultBuilderベースの宣言的フィルター構文
-  - `Field` - フィールド参照と演算子オーバーロード（`==`, `!=`, `<`, `<=`, `>`, `>=`）
-  - `And` / `Or` - 明示的な論理グループ化
-  - `.contains()`, `.containsAny()`, `.in()`, `.notIn()` - 配列操作
-  - `.isNull`, `.isNotNull`, `.isNaN`, `.isNotNaN` - NULL/NaN判定
-  - `Query.filter { }` - DSLを使用したフィルター追加
-- `FirestoreValueConvertible` - Swift標準型からFirestoreValueへの変換プロトコル
+### Added
+- **FilterBuilder DSL** — a declarative filter syntax built on ResultBuilder
+  - `Field` — field references with operator overloads (`==`, `!=`, `<`, `<=`, `>`, `>=`)
+  - `And` / `Or` — explicit logical grouping
+  - `.contains()`, `.containsAny()`, `.in()`, `.notIn()` — array operations
+  - `.isNull`, `.isNotNull`, `.isNaN`, `.isNotNaN` — NULL/NaN checks
+  - `Query.filter { }` — adds filters using the DSL
+- `FirestoreValueConvertible` — a protocol converting Swift standard types to FirestoreValue
 
-- **StorageServer** - Cloud Storage REST APIクライアント
-  - `StorageClient` - アップロード、ダウンロード、削除、メタデータ取得
-  - `StorageConfiguration` - 本番環境/エミュレーター対応
-  - `StorageObject` - ファイルメタデータモデル
-  - `StorageError` - 包括的なエラーハンドリング
+- **StorageServer** — a Cloud Storage REST API client
+  - `StorageClient` — upload, download, delete, and metadata
+  - `StorageConfiguration` — production and emulator
+  - `StorageObject` — the file metadata model
+  - `StorageError` — comprehensive error handling
 
-- **StorageSchema マクロDSL** - 型安全なストレージスキーマ定義
-  - `@StorageSchema` - ルートスキーマ定義マクロ
-  - `@Folder("id")` - 階層的フォルダ構造定義
-  - `@Object("id")` - ファイルオブジェクトパス定義
-  - `FileExtension` - 一般的なファイル形式のContent-Typeマッピング
+- **StorageSchema macro DSL** — type-safe storage schema definitions
+  - `@StorageSchema` — the root schema definition macro
+  - `@Folder("id")` — a hierarchical folder structure
+  - `@Object("id")` — a file object path
+  - `FileExtension` — Content-Type mappings for the common file formats
   - `StorageSchemaProtocol` / `StorageFolderProtocol` / `StorageObjectPathProtocol`
 
-- **Internal（共有モジュール）**
-  - `HTTPClientProvider` - 共有HTTPクライアント管理
-  - `APIError` - Firebase REST API共通エラー
-  - `ServiceConfiguration` プロトコルと `EmulatorConfig`
+- **Internal (the shared module)**
+  - `HTTPClientProvider` — shared HTTP client management
+  - `APIError` — the shared Firebase REST API error
+  - The `ServiceConfiguration` protocol and `EmulatorConfig`
 
-### 変更
-- FirestoreServerをInternalモジュールを使用するようにリファクタリング
-- `FirestoreError` が共通エラーケースで `APIError` をラップするように変更
+### Changed
+- Refactored FirestoreServer to use the Internal module
+- `FirestoreError` wraps `APIError` for the shared error cases
 
-### 削除
-- `QueryResult<T>` - 未使用の構造体を削除
+### Removed
+- `QueryResult<T>` — an unused struct
 
 ## [1.0.0] - 2025-12-09
 
-### 追加
-- **FirestoreServer コアライブラリ**
-  - `FirestoreClient` - REST APIクライアント
-  - `CollectionReference` / `DocumentReference` - 参照型
-  - `CollectionPath` / `DocumentPath` / `DatabasePath` - パス型
-  - `FirestoreEncoder` / `FirestoreDecoder` - Codable対応
-  - `FirestoreValue` - Firestore値型のSwift表現
+### Added
+- **The FirestoreServer core library**
+  - `FirestoreClient` — the REST API client
+  - `CollectionReference` / `DocumentReference` — the reference types
+  - `CollectionPath` / `DocumentPath` / `DatabasePath` — the path types
+  - `FirestoreEncoder` / `FirestoreDecoder` — Codable support
+  - `FirestoreValue` — Firestore's value types in Swift
 
 - **Query API**
-  - `Query<T>` - 型安全なクエリビルダー
-  - `FieldFilter` - フィールドフィルター（equal, lessThan, greaterThan, in, arrayContains等）
-  - `CompositeFilter` - 複合フィルター（AND/OR）
-  - `UnaryFilter` - 単項フィルター（isNull, isNotNull）
-  - `QueryOrder` - ソート（ascending, descending）
-  - ページネーション（limit, offset, startAt, startAfter, endAt, endBefore）
+  - `Query<T>` — a type-safe query builder
+  - `FieldFilter` — field filters (equal, lessThan, greaterThan, in, arrayContains and so on)
+  - `CompositeFilter` — composite filters (AND/OR)
+  - `UnaryFilter` — unary filters (isNull, isNotNull)
+  - `QueryOrder` — sorting (ascending, descending)
+  - Pagination (limit, offset, startAt, startAfter, endAt, endBefore)
 
-- **FirestoreSchema マクロDSL**
-  - `@FirestoreSchema` - ルートスキーマ定義マクロ
-  - `@Collection("id")` - コレクション定義マクロ
-  - `@SubCollection("id")` - サブコレクション定義マクロ
-  - `FirestoreSchemaProtocol` / `FirestoreCollectionProtocol` / `FirestoreDocumentProtocol` - プロトコル定義
+- **FirestoreSchema macro DSL**
+  - `@FirestoreSchema` — the root schema definition macro
+  - `@Collection("id")` — the collection definition macro
+  - `@SubCollection("id")` — the subcollection definition macro
+  - `FirestoreSchemaProtocol` / `FirestoreCollectionProtocol` / `FirestoreDocumentProtocol` — the protocol definitions
 
-### ドキュメント
-- 包括的な README.md
-- リリースプロセスガイド
-- GitHub Actions による DocC 自動デプロイ
+### Documentation
+- A comprehensive README.md
+- A release process guide
+- Automatic DocC deployment through GitHub Actions
 
-[未リリース]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.17...HEAD
+[Unreleased]: https://github.com/no-problem-dev/swift-firebase-server/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.17...1.1.0
 [1.0.17]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.16...v1.0.17
 [1.0.16]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/no-problem-dev/swift-firebase-server/compare/v1.0.14...v1.0.15
