@@ -5,10 +5,17 @@ import NIOCore
 @testable import FirebaseStorageServer
 @testable import Internal
 
+/// `SOCK_STREAM` は Darwin では `Int32`、Linux では `__socket_type` として入ってくる。
+#if canImport(Glibc)
+private let streamSocketType = Int32(SOCK_STREAM.rawValue)
+#else
+private let streamSocketType = SOCK_STREAM
+#endif
+
 /// Storage エミュレーター（localhost:9199）に TCP 接続できるかを確認する。
 /// この suite は実エミュレーターへの統合テストであり、未起動の環境では前提が成立しない。
 private func storageEmulatorIsReachable() -> Bool {
-    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    let fd = socket(AF_INET, streamSocketType, 0)
     guard fd >= 0 else { return false }
     defer { close(fd) }
     var addr = sockaddr_in()
