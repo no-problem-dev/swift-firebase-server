@@ -3,27 +3,26 @@ import SwiftSyntaxMacros
 
 // MARK: - FieldIgnoreMacro
 
-/// `@FieldIgnore`マクロの実装
+/// The expansion behind `@FieldIgnore`.
 ///
-/// プロパティに付与し、フィールドを`CodingKeys`から除外する。
-/// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// `CodingKeys` を生成する。
+/// It generates nothing and takes no argument. `@FirestoreModel` reads the attribute and leaves
+/// the property out of both `CodingKeys` and `Fields`.
 public struct FieldIgnoreMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // プロパティ宣言であることを確認
+        // Reject anything that is not a property
         guard declaration.as(VariableDeclSyntax.self) != nil else {
             throw MacroError.invalidArgument("@FieldIgnore can only be applied to properties")
         }
 
-        // コード生成なし（マーカーのみ）
+        // Nothing to emit
         return []
     }
 
-    /// 属性が@FieldIgnoreかどうかを判定
+    /// Reports whether an attribute is `@FieldIgnore`, matching on the written name only.
     static func isFieldIgnore(_ attribute: AttributeSyntax) -> Bool {
         guard let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) else {
             return false

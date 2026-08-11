@@ -1,31 +1,33 @@
 import Foundation
 import Internal
 
-/// Firebase Auth クライアント
+/// Verifies the Firebase ID tokens your clients send, and hands back the identity inside them.
 ///
-/// Firebase ID トークンを検証し、ユーザー情報を取得するためのクライアント。
-/// サーバーサイドで使用し、クライアントから送信された ID トークンを検証する。
+/// This is the server side of Firebase Authentication: it never signs a user in, it only decides
+/// whether a token presented by a client is genuine and still valid for this project. Google's
+/// signing certificates are fetched once and cached, so a steady stream of requests costs no extra
+/// network traffic.
 ///
-/// ## 使用例
+/// ## Example
 ///
 /// ```swift
-/// // 本番環境
+/// // Production
 /// let config = AuthConfiguration(projectId: "my-project")
 /// let authClient = AuthClient(configuration: config)
 ///
-/// // ID トークンを検証
+/// // Verify an ID token
 /// let token = try await authClient.verifyIDToken(idToken)
 /// print("User ID: \(token.uid)")
 ///
-/// // エミュレーター環境
+/// // Emulator
 /// let emulatorConfig = AuthConfiguration.emulator(projectId: "my-project")
 /// let emulatorClient = AuthClient(configuration: emulatorConfig)
 /// ```
 ///
-/// ## Vapor での使用例
+/// ## Using it from Vapor
 ///
 /// ```swift
-/// // ミドルウェアでの使用
+/// // In a middleware
 /// func handle(request: Request, next: Responder) async throws -> Response {
 ///     guard let authorization = request.headers["Authorization"].first,
 ///           authorization.hasPrefix("Bearer ") else {
@@ -35,25 +37,26 @@ import Internal
 ///     let idToken = String(authorization.dropFirst("Bearer ".count))
 ///     let verifiedToken = try await authClient.verifyIDToken(idToken)
 ///
-///     // ユーザーIDをリクエストに保存
+///     // Attach the identity to the request
 ///     request.auth.login(verifiedToken)
 ///     return try await next.respond(to: request)
 /// }
 /// ```
 public final class AuthClient: Sendable {
-    /// 設定
     public let configuration: AuthConfiguration
 
-    /// HTTP クライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
 
-    /// ID トークン検証器
     private let tokenVerifier: IDTokenVerifier
 
     // MARK: - Initializers
 
-    /// 設定を指定して初期化（HTTPClient を内部で作成）
-    /// - Parameter configuration: Auth 設定
+    /// Creates a client that owns its own HTTP client.
+    ///
+    /// Prefer ``init(configuration:httpClientProvider:)`` when the process already runs another
+    /// Firebase client, so they share one connection pool.
+    ///
+    /// - Parameter configuration: The project to verify tokens for.
     public init(configuration: AuthConfiguration) {
         self.configuration = configuration
         self.httpClientProvider = HTTPClientProvider()
@@ -69,14 +72,14 @@ public final class AuthClient: Sendable {
         )
     }
 
-    /// 設定と HTTP クライアントプロバイダーを指定して初期化
+    /// Creates a client that shares an existing HTTP client.
     ///
-    /// 複数の Firebase サービス（Firestore, Storage, Auth）で
-    /// HTTPClient を共有する場合に使用。
+    /// Use this when several Firebase services — Firestore, Storage, Auth — run in the same process,
+    /// so they share one connection pool instead of each opening their own.
     ///
     /// - Parameters:
-    ///   - configuration: Auth 設定
-    ///   - httpClientProvider: 共有 HTTPClientProvider
+    ///   - configuration: The project to verify tokens for.
+    ///   - httpClientProvider: The provider to borrow the HTTP client from.
     public init(
         configuration: AuthConfiguration,
         httpClientProvider: HTTPClientProvider
@@ -95,50 +98,57 @@ public final class AuthClient: Sendable {
         )
     }
 
-    /// プロジェクトIDのみを指定して初期化（簡易版）
-    /// - Parameter projectId: Google Cloud プロジェクトID
+    /// Creates a production client for a project, with the default 30-second timeout.
+    /// - Parameter projectId: The Google Cloud project ID.
     public convenience init(projectId: String) {
         self.init(configuration: AuthConfiguration(projectId: projectId))
     }
 
     // MARK: - Public Methods
 
-    /// Firebase ID トークンを検証
+    /// Verifies a Firebase ID token and returns the identity it carries.
     ///
-    /// クライアントから送信された ID トークンを検証し、
-    /// 検証が成功した場合はユーザー情報を含む `VerifiedToken` を返す。
+    /// - Parameter idToken: The raw JWT sent by the client, without any `Bearer ` prefix.
+    /// - Throws: ``AuthError`` on the first check that fails.
     ///
-    /// - Parameter idToken: Firebase ID トークン文字列
-    /// - Returns: 検証済みトークン
-    /// - Throws: `AuthError` 検証に失敗した場合
+    /// ## What is checked
     ///
-    /// ## 検証内容
+    /// 1. The token splits into three dot-separated Base64URL parts.
+    /// 2. The header's `alg` is `RS256`.
+    /// 3. The claims:
+    ///    - `exp`: not past.
+    ///    - `iat`: not in the future.
+    ///    - `auth_time`: not in the future.
+    ///    - `aud`: equal to the project ID.
+    ///    - `iss`: equal to `https://securetoken.google.com/{projectId}`.
+    ///    - `sub`: a non-empty string, the Firebase UID.
+    /// 4. The RS256 signature, against Google's published certificate for the header's `kid`.
     ///
-    /// 1. JWT 形式の検証（3パートに分割可能か）
-    /// 2. アルゴリズムの検証（RS256 であるか）
-    /// 3. クレームの検証:
-    ///    - `exp`: 有効期限が未来であること
-    ///    - `iat`: 発行時刻が過去であること
-    ///    - `auth_time`: 認証時刻が過去であること
-    ///    - `aud`: プロジェクトID と一致
-    ///    - `iss`: `https://securetoken.google.com/{projectId}` と一致
-    ///    - `sub`: 非空文字列（Firebase UID）
-    /// 4. 署名の検証（Google 公開鍵で RS256 検証）
+    /// The three time comparisons allow five minutes of clock skew, so a token stays acceptable for
+    /// five minutes past `exp`. Claims are checked before the signature.
+    ///
+    /// ## What is not checked
+    ///
+    /// Revocation and account-disabled state are not checked; that needs a call to the Firebase Admin
+    /// API. Custom claims are not decoded, `nbf` and `typ` are ignored, and the certificate carrying
+    /// the public key is not itself validated.
+    ///
+    /// - Warning: A client built from ``AuthConfiguration/emulator(projectId:host:port:timeout:)``
+    ///   skips every check above except that `sub` is non-empty, and accepts unsigned tokens.
     public func verifyIDToken(_ idToken: String) async throws -> VerifiedToken {
         try await tokenVerifier.verify(idToken)
     }
 
-    /// Authorization ヘッダーから ID トークンを抽出して検証
+    /// Pulls the token out of an `Authorization` header value and verifies it.
     ///
-    /// `Bearer {token}` 形式のヘッダー値からトークンを抽出し、検証する。
+    /// The scheme must be `Bearer`, matched case-insensitively, followed by a single space and a
+    /// non-empty token.
     ///
-    /// - Parameter authorizationHeader: Authorization ヘッダーの値
-    /// - Returns: 検証済みトークン
-    /// - Throws: `AuthError.tokenMissing` ヘッダーが空の場合
-    /// - Throws: `AuthError.tokenInvalid` Bearer 形式でない場合
-    /// - Throws: その他の `AuthError` 検証に失敗した場合
+    /// - Parameter authorizationHeader: The raw header value, such as `Bearer eyJhbGci…`.
+    /// - Throws: ``AuthError/tokenMissing`` if the value is empty, ``AuthError/tokenInvalid(reason:)``
+    ///   if it is not in `Bearer <token>` form, or whichever ``AuthError`` the verification itself raises.
     ///
-    /// ## 使用例
+    /// ## Example
     ///
     /// ```swift
     /// let authHeader = request.headers["Authorization"].first ?? ""
@@ -151,7 +161,8 @@ public final class AuthClient: Sendable {
 
     // MARK: - Private Methods
 
-    /// Authorization ヘッダーから Bearer トークンを抽出
+    /// Splits an `Authorization` header value into scheme and token, matching the scheme
+    /// case-insensitively and rejecting an empty token.
     private func extractBearerToken(from header: String) throws -> String {
         guard !header.isEmpty else {
             throw AuthError.tokenMissing

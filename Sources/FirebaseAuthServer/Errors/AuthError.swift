@@ -1,8 +1,8 @@
 import Foundation
 
-/// Firebase Auth 認証エラー
+/// Everything that can go wrong while verifying a Firebase ID token or calling the Admin API.
 ///
-/// Go バックエンドのエラーコードと対応:
+/// The cases map onto the error codes of the Go backend through ``errorCode``:
 /// - `AUTH_TOKEN_MISSING` → `.tokenMissing`
 /// - `AUTH_TOKEN_INVALID` → `.tokenInvalid`
 /// - `AUTH_TOKEN_EXPIRED` → `.tokenExpired`
@@ -11,54 +11,70 @@ import Foundation
 public enum AuthError: Error, Sendable {
     // MARK: - Token Extraction Errors
 
-    /// Authorization ヘッダーが存在しない
+    /// The `Authorization` header value was empty.
     case tokenMissing
 
-    /// トークン形式が不正（Bearer 形式でない等）
+    /// The token could not be read far enough to judge it.
+    ///
+    /// Covers a header that is not `Bearer <token>`, a JWT without three parts, unreadable Base64URL
+    /// or JSON, a missing `kid`, and an `iat` or `auth_time` set in the future.
     case tokenInvalid(reason: String)
 
-    /// トークンの有効期限切れ
+    /// The `exp` claim is further in the past than the verifier's clock skew allowance.
     case tokenExpired(expiredAt: Date)
 
     // MARK: - Token Verification Errors
 
-    /// トークン検証失敗
+    /// A verification failure that no other case describes.
+    ///
+    /// This package never throws it; it exists so callers layering their own checks on top can reuse
+    /// the `AUTH_VERIFICATION_FAILED` code.
     case verificationFailed(reason: String)
 
-    /// サポートされていないアルゴリズム
+    /// The header's `alg` was something other than `RS256`.
     case unsupportedAlgorithm(String)
 
-    /// 署名が不正
+    /// The RS256 signature did not match Google's certificate for the token's `kid`.
     case signatureInvalid
 
-    /// 発行者（issuer）が不正
+    /// The `iss` claim is not `https://securetoken.google.com/{projectId}` for the configured project.
     case invalidIssuer(expected: String, actual: String)
 
-    /// 対象者（audience）が不正
+    /// The `aud` claim is not the configured project ID, so the token was minted for another project.
     case invalidAudience(expected: String, actual: String)
 
     // MARK: - Public Key Errors
 
-    /// 公開鍵の取得に失敗
+    /// Google's key set could not be fetched.
+    ///
+    /// The wrapped error is the transport failure, or an `NSError` carrying a non-`200` status code,
+    /// or the decoding failure from an unexpected body.
     case publicKeyFetchFailed(underlying: Error)
 
-    /// 指定された kid の公開鍵が見つからない
+    /// Google's key set has no certificate under this key ID, even after a refresh.
+    ///
+    /// Usually the token was signed by something other than Firebase, or by a key that has since been
+    /// rotated out.
     case publicKeyNotFound(kid: String)
 
-    /// 公開鍵の形式が不正
+    /// The certificate came back in a shape that could not be parsed down to an RSA public key.
     case invalidPublicKey(reason: String)
 
     // MARK: - User Errors
 
-    /// ユーザーが見つからない（sub クレームが空）
+    /// The token's `sub` claim is empty.
+    ///
+    /// It is a malformed token, not the result of looking a user up and finding nobody.
     case userNotFound
 
     // MARK: - Admin API Errors
 
-    /// ユーザー削除に失敗
+    /// A delete request could not be sent or the reply was not an HTTP response.
+    ///
+    /// A deletion the API itself refuses arrives as ``adminAPIFailed(statusCode:message:)``.
     case deleteUserFailed(reason: String)
 
-    /// Admin API リクエストに失敗
+    /// The Identity Toolkit API answered with a non-`200` status, and the message it gave.
     case adminAPIFailed(statusCode: Int, message: String)
 }
 
@@ -116,7 +132,11 @@ extension AuthError: CustomStringConvertible {
 // MARK: - Error Code (Go Backend Compatibility)
 
 extension AuthError {
-    /// Go バックエンドとの互換性のためのエラーコード
+    /// The error code string that matches the Go backend's vocabulary.
+    ///
+    /// Several cases collapse into one code: every signature, key, issuer, and audience failure
+    /// reports `AUTH_VERIFICATION_FAILED`, and both Admin API cases report `AUTH_ADMIN_API_ERROR`.
+    /// Send this to clients and keep ``description`` for your own logs.
     public var errorCode: String {
         switch self {
         case .tokenMissing:

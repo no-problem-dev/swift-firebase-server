@@ -1,8 +1,12 @@
 import Foundation
 
-/// ストレージファイルの拡張子
+/// A file extension the schema can build a path from, together with the MIME type it uploads under.
+///
+/// The set is closed: an extension not listed here cannot be used with `@Object`. The raw value is
+/// the extension without its dot, except `sevenZ`, whose raw value is `"7z"` because that is not a
+/// valid Swift identifier.
 public enum FileExtension: String, Sendable, CaseIterable {
-    // 画像
+    // Images
     case jpg
     case jpeg
     case png
@@ -15,7 +19,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
     case ico
     case tiff
 
-    // ドキュメント
+    // Documents
     case pdf
     case doc
     case docx
@@ -27,7 +31,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
     case rtf
     case csv
 
-    // 動画
+    // Video
     case mp4
     case mov
     case avi
@@ -35,7 +39,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
     case webm
     case m4v
 
-    // 音声
+    // Audio
     case mp3
     case wav
     case aac
@@ -43,33 +47,35 @@ public enum FileExtension: String, Sendable, CaseIterable {
     case ogg
     case flac
 
-    // アーカイブ
+    // Archives
     case zip
     case tar
     case gz
     case rar
     case sevenZ = "7z"
 
-    // データ
+    // Data
     case json
     case xml
     case yaml
     case yml
 
-    // その他
+    // Other
     case html
     case css
     case js
 
-    /// ドット付きの拡張子（例: ".jpg"）
+    /// The extension with its leading dot, as it is appended to an object path.
     public var withDot: String {
         ".\(rawValue)"
     }
 
-    /// Content-Type（MIME タイプ）
+    /// The MIME type sent as `Content-Type` when uploading a file with this extension.
+    ///
+    /// Fixed per extension, so it reflects the declared type and not the bytes actually uploaded.
     public var contentType: String {
         switch self {
-        // 画像
+        // Images
         case .jpg, .jpeg: return "image/jpeg"
         case .png: return "image/png"
         case .gif: return "image/gif"
@@ -81,7 +87,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
         case .ico: return "image/x-icon"
         case .tiff: return "image/tiff"
 
-        // ドキュメント
+        // Documents
         case .pdf: return "application/pdf"
         case .doc: return "application/msword"
         case .docx: return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -93,7 +99,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
         case .rtf: return "application/rtf"
         case .csv: return "text/csv"
 
-        // 動画
+        // Video
         case .mp4: return "video/mp4"
         case .mov: return "video/quicktime"
         case .avi: return "video/x-msvideo"
@@ -101,7 +107,7 @@ public enum FileExtension: String, Sendable, CaseIterable {
         case .webm: return "video/webm"
         case .m4v: return "video/x-m4v"
 
-        // 音声
+        // Audio
         case .mp3: return "audio/mpeg"
         case .wav: return "audio/wav"
         case .aac: return "audio/aac"
@@ -109,19 +115,19 @@ public enum FileExtension: String, Sendable, CaseIterable {
         case .ogg: return "audio/ogg"
         case .flac: return "audio/flac"
 
-        // アーカイブ
+        // Archives
         case .zip: return "application/zip"
         case .tar: return "application/x-tar"
         case .gz: return "application/gzip"
         case .rar: return "application/vnd.rar"
         case .sevenZ: return "application/x-7z-compressed"
 
-        // データ
+        // Data
         case .json: return "application/json"
         case .xml: return "application/xml"
         case .yaml, .yml: return "application/x-yaml"
 
-        // その他
+        // Other
         case .html: return "text/html"
         case .css: return "text/css"
         case .js: return "application/javascript"

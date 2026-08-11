@@ -1,32 +1,55 @@
 import Foundation
 
-/// Cloud Storageオブジェクトのメタデータ
+/// Metadata for one object in a bucket, as the Cloud Storage JSON API reports it.
+///
+/// A subset of the API's object resource — the fields an upload, a metadata fetch, or a listing
+/// return. Every field except ``id``, ``name``, ``bucket``, and ``size`` degrades to `nil` when the
+/// response omits it, so treat a missing value as "not reported", not as "absent on the object".
 public struct StorageObject: Sendable, Codable {
-    /// オブジェクトID
+    /// The object's fully qualified identity, normally `{bucket}/{name}#{generation}`.
+    ///
+    /// The emulator does not always send an `id`; in that case it is rebuilt from the generation,
+    /// or falls back to `{bucket}/{name}` with no generation suffix at all. Do not parse it to
+    /// recover the generation.
     public let id: String
 
-    /// オブジェクト名（パス）
+    /// The object's full path inside the bucket, slashes included.
+    ///
+    /// Cloud Storage buckets are flat, so this is one string — `"images/user123.jpg"` — rather
+    /// than a directory entry.
     public let name: String
 
-    /// バケット名
     public let bucket: String
 
-    /// コンテンツタイプ
     public let contentType: String?
 
-    /// ファイルサイズ（バイト）
+    /// The object's size in bytes.
+    ///
+    /// The API reports this as a decimal string. A response that omits it, or that carries a value
+    /// this parser cannot read, yields `0`, so `0` does not always mean an empty object.
     public let size: Int64
 
-    /// MD5ハッシュ（Base64エンコード）
+    /// The Base64-encoded MD5 digest of the object's content.
+    ///
+    /// Cloud Storage omits it for composite objects and for objects whose content was never hashed,
+    /// so it is not a reliable integrity check for every object.
     public let md5Hash: String?
 
-    /// 作成日時
+    /// When the object was created.
+    ///
+    /// `nil` when the API's timestamp carries no fractional seconds: the parser requires them and
+    /// returns nothing otherwise.
     public let timeCreated: Date?
 
-    /// 更新日時
+    /// When the object's content or metadata last changed.
+    ///
+    /// Parsed under the same fractional-seconds rule as ``timeCreated``.
     public let updated: Date?
 
-    /// メディアリンク（ダウンロードURL）
+    /// The API's authenticated download URL for this object.
+    ///
+    /// It still needs the same `Authorization` header the client sends, so it is not a link you can
+    /// hand out. Use `StorageClient.publicURL(for:)` for that.
     public let mediaLink: String?
 
     public init(
@@ -55,7 +78,12 @@ public struct StorageObject: Sendable, Codable {
 // MARK: - JSON Parsing
 
 extension StorageObject {
-    /// REST APIレスポンスからStorageObjectを生成
+    /// Builds an object from a JSON API response body.
+    ///
+    /// Only `name` and `bucket` are required; without either, this returns `nil` and the caller
+    /// reports the body as invalid. Everything else degrades quietly: a missing or unparseable
+    /// `size` becomes `0`, a missing `id` is synthesized, and a timestamp without fractional
+    /// seconds becomes `nil`.
     static func fromJSON(_ json: [String: Any]) -> StorageObject? {
         guard
             let name = json["name"] as? String,
@@ -64,7 +92,7 @@ extension StorageObject {
             return nil
         }
 
-        // idフィールドがない場合（エミュレーター）、generationから生成
+        // The emulator can omit "id"; rebuild it from the generation instead.
         let id: String
         if let explicitId = json["id"] as? String {
             id = explicitId
@@ -73,7 +101,7 @@ extension StorageObject {
         } else if let generationInt = json["generation"] as? Int64 {
             id = "\(bucket)/\(name)#\(generationInt)"
         } else {
-            // どちらもない場合はnameをidとして使用
+            // Neither field is present: fall back to an id with no generation.
             id = "\(bucket)/\(name)"
         }
 

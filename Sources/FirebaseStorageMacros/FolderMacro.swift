@@ -1,14 +1,18 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Folder`マクロの実装
+/// The implementation of `@Folder`.
 ///
-/// このマクロは以下を生成:
-/// - `static var folderName: String`
-/// - `client: StorageClient`プロパティ
-/// - `parentPath: String?`プロパティ
-/// - `init(client:parentPath:)`イニシャライザ
-/// - ネストされた`@Folder`や`@Object`へのアクセサ
+/// Adds to the annotated struct:
+/// - `static let folderName: String`, holding the macro's argument
+/// - `client: StorageClient` and `parentPath: String?` properties
+/// - `init(client:parentPath:)`
+/// - one accessor per nested struct marked `@Folder` (a property) or `@Object` (a method taking an
+///   object ID and a `FileExtension`), each named after the struct with a lowercased first letter
+/// - conformance to `StorageFolderProtocol` and `Sendable`
+///
+/// Rejects anything that is not a struct with `StorageMacroError.requiresStruct`, and an argument
+/// that is not a plain string literal with `.missingFolderName`.
 public struct FolderMacro {}
 
 // MARK: - MemberMacro
@@ -24,7 +28,7 @@ extension FolderMacro: MemberMacro {
             throw StorageMacroError.requiresStruct
         }
 
-        // フォルダ名を取得
+        // Read the folder name from the attribute argument.
         guard let folderName = extractStringArgument(from: node) else {
             throw StorageMacroError.missingFolderName
         }
@@ -36,17 +40,17 @@ extension FolderMacro: MemberMacro {
             public static let folderName: String = \(literal: folderName)
             """)
 
-        // client プロパティ
+        // client property
         members.append("""
             public let client: StorageClient
             """)
 
-        // parentPath プロパティ
+        // parentPath property
         members.append("""
             public let parentPath: String?
             """)
 
-        // イニシャライザ
+        // Initializer
         members.append("""
             public init(client: StorageClient, parentPath: String?) {
                 self.client = client
@@ -54,7 +58,7 @@ extension FolderMacro: MemberMacro {
             }
             """)
 
-        // ネストされた@Folder属性を持つ構造体のアクセサを生成
+        // Generate an accessor for every nested struct carrying @Folder or @Object.
         for member in structDecl.memberBlock.members {
             guard let nestedStruct = member.decl.as(StructDeclSyntax.self) else { continue }
 
@@ -67,14 +71,14 @@ extension FolderMacro: MemberMacro {
                 let accessorName = structName.lowercasedFirst()
 
                 if identifier.name.text == "Folder" {
-                    // サブフォルダアクセサを生成
+                    // A nested folder becomes a property that inherits this folder's path.
                     members.append("""
                         public var \(raw: accessorName): \(raw: structName) {
                             \(raw: structName)(client: client, parentPath: path)
                         }
                         """)
                 } else if identifier.name.text == "Object" {
-                    // オブジェクトアクセサを生成（callAsFunctionでIDと拡張子を受け取る）
+                    // A nested object becomes a method taking the object ID and extension.
                     members.append("""
                         public func \(raw: accessorName)(_ objectId: String, _ ext: FileExtension) -> \(raw: structName) {
                             \(raw: structName)(client: client, parentPath: path, objectId: objectId, fileExtension: ext)
@@ -91,6 +95,10 @@ extension FolderMacro: MemberMacro {
 // MARK: - MemberAttributeMacro
 
 extension FolderMacro: MemberAttributeMacro {
+    /// Adds no attributes to nested members.
+    ///
+    /// Nested structs must carry `@Folder` or `@Object` themselves; the macro reads those
+    /// attributes but never writes them.
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
@@ -125,6 +133,11 @@ extension FolderMacro: ExtensionMacro {
 
 // MARK: - Helpers
 
+/// Reads the first argument of an attribute as a literal string.
+///
+/// Returns `nil` unless the argument is a string literal whose first segment is plain text, so an
+/// interpolated or concatenated name is rejected rather than partially read. Callers turn that
+/// `nil` into a `StorageMacroError`.
 func extractStringArgument(from node: AttributeSyntax) -> String? {
     guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
           let firstArg = arguments.first,

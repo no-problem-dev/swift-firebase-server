@@ -1,7 +1,8 @@
-/// Firestoreパスの構成要素
+/// One segment of a Firestore path, tagged with what it names.
 ///
-/// Firestoreのパスは `collection/document/collection/document/...` の形式で、
-/// 奇数番目がコレクション、偶数番目がドキュメントを表す。
+/// A Firestore path reads `collection/document/collection/document/…`, so the tag follows from
+/// the segment's position rather than from anything in the ID itself: the first segment is a
+/// collection, the second a document, and so on.
 public enum PathSegment: Sendable, Hashable {
     case collection(String)
     case document(String)

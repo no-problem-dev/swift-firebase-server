@@ -1,25 +1,32 @@
 import Foundation
 
-/// Firebase サービス共通の設定プロトコル
+/// The settings every Firebase service client needs, whatever service it talks to.
 public protocol ServiceConfiguration: Sendable {
-    /// Google Cloud プロジェクトID
     var projectId: String { get }
 
-    /// ベースURL（本番 or エミュレーター）
+    /// The root every request URL is built from.
+    ///
+    /// Production configurations point at the service's https endpoint; emulator ones point at
+    /// plain http on the emulator's host and port.
     var baseURL: URL { get }
 
-    /// リクエストタイムアウト（秒）
+    /// The timeout applied to each HTTP request, in seconds, not to a whole operation.
     var timeout: TimeInterval { get }
 }
 
-/// エミュレーター設定を持つサービス用プロトコル
+/// A configuration type that can also be pointed at the Firebase Emulator Suite.
+///
+/// Gives callers one way to build an emulator configuration for any service. A conforming type
+/// fills in whatever else it needs from these four values; Cloud Storage, for instance, derives
+/// its bucket name from the project ID.
 public protocol EmulatorConfigurable {
-    /// エミュレーター用の設定を作成
+    /// Creates a configuration aimed at a locally running emulator.
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - host: エミュレーターホスト
-    ///   - port: エミュレーターポート
-    ///   - timeout: タイムアウト秒数
+    ///   - projectId: The project ID the emulator scopes data under. It does not have to exist
+    ///     in Google Cloud.
+    ///   - host: The host the emulator listens on.
+    ///   - port: The port the emulator listens on.
+    ///   - timeout: The per-request timeout, in seconds.
     static func emulator(
         projectId: String,
         host: String,
@@ -28,21 +35,19 @@ public protocol EmulatorConfigurable {
     ) -> Self
 }
 
-/// 共通のエミュレーター設定
+/// The host and port of a running emulator, and the default values for both.
 public struct EmulatorConfig: Sendable {
-    /// ホスト名
     public let host: String
 
-    /// ポート番号
     public let port: Int
 
-    /// デフォルトのFirestoreエミュレーターポート
+    /// The port the Firestore emulator listens on unless `firebase.json` moves it.
     public static let defaultFirestorePort = 8080
 
-    /// デフォルトのStorageエミュレーターポート
+    /// The port the Cloud Storage emulator listens on unless `firebase.json` moves it.
     public static let defaultStoragePort = 9199
 
-    /// デフォルトホスト
+    /// The host the emulator suite binds to unless `firebase.json` moves it.
     public static let defaultHost = "localhost"
 
     public init(host: String = Self.defaultHost, port: Int) {
@@ -50,8 +55,11 @@ public struct EmulatorConfig: Sendable {
         self.port = port
     }
 
-    /// ベースURLを構築
-    /// - Parameter path: URLパス（例: "/v1"）
+    /// Builds the base URL for a service running on this host and port.
+    ///
+    /// Always plain http, since the emulator does not serve TLS. Traps if the host, port and
+    /// path do not form a valid URL.
+    /// - Parameter path: The path appended after the host and port, such as `"/v1"`.
     public func buildURL(path: String = "") -> URL {
         URL(string: "http://\(host):\(port)\(path)")!
     }

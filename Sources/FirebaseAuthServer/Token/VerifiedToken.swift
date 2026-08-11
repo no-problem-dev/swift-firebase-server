@@ -1,54 +1,50 @@
 import Foundation
 
-/// 検証済み Firebase ID トークン
+/// The identity carried by a Firebase ID token that has passed verification.
 ///
-/// ID トークンの検証が成功した後に返される、安全に使用できるトークン情報。
-/// サーバーサイドでユーザーを識別するために使用。
+/// Getting one back from ``AuthClient/verifyIDToken(_:)`` is what makes ``uid`` safe to trust as the
+/// caller's identity. Every other field is copied straight from the token's claims, so treat them as
+/// what the user's identity provider said, not as facts your system has confirmed.
 public struct VerifiedToken: Sendable {
-    /// Firebase UID
+    /// The Firebase UID.
     ///
-    /// ユーザーを一意に識別する ID。データベースでのユーザー関連付けに使用。
+    /// This is the identifier to key your own records on: it is stable for the life of the account
+    /// and never reused, unlike an email address or a phone number.
     public let uid: String
 
-    /// メールアドレス（オプション）
     public let email: String?
 
-    /// メールアドレスが確認済みかどうか
+    /// Whether the identity provider says the email address is verified.
+    ///
+    /// A token with no `email_verified` claim lands here as `false`, so `false` means "not asserted"
+    /// rather than "checked and found unverified".
     public let emailVerified: Bool
 
-    /// ユーザー名（オプション）
     public let name: String?
 
-    /// プロフィール画像URL（オプション）
     public let picture: String?
 
-    /// 電話番号（オプション）
     public let phoneNumber: String?
 
-    /// 認証時刻
-    ///
-    /// ユーザーが Firebase に認証した時刻
+    /// When the user actually authenticated, which can be far earlier than ``issuedAt`` because ID
+    /// tokens are refreshed roughly hourly without the user signing in again.
     public let authTime: Date
 
-    /// トークン発行時刻
     public let issuedAt: Date
 
-    /// トークン有効期限
     public let expiresAt: Date
 
-    /// サインインプロバイダー
-    ///
-    /// 例: "password", "google.com", "apple.com"
+    /// How the user signed in, such as `password`, `google.com`, or `apple.com`.
     public let signInProvider: String?
 
-    /// カスタムクレーム（生データ）
+    /// The rest of the `firebase` claim, including the linked identities and the tenant.
     ///
-    /// Firebase の Firebase Claims に含まれる追加情報
+    /// Custom claims set through the Admin SDK are not here: they ride at the top level of the token
+    /// and this package does not decode them.
     public let firebaseClaims: FirebaseClaim?
 
     // MARK: - Initializers
 
-    /// JWT ペイロードから初期化
     internal init(payload: JWTPayload) {
         self.uid = payload.uid
         self.email = payload.email
@@ -63,7 +59,7 @@ public struct VerifiedToken: Sendable {
         self.firebaseClaims = payload.firebase
     }
 
-    /// 明示的な値で初期化（主にテスト用）
+    /// Creates a token from explicit values, without any token to verify. Intended for tests and fixtures.
     public init(
         uid: String,
         email: String? = nil,
@@ -94,6 +90,8 @@ public struct VerifiedToken: Sendable {
 // MARK: - Equatable
 
 extension VerifiedToken: Equatable {
+    /// Compares every stored property except ``firebaseClaims``, so two tokens that differ only in
+    /// their linked identities or tenant compare as equal.
     public static func == (lhs: VerifiedToken, rhs: VerifiedToken) -> Bool {
         lhs.uid == rhs.uid &&
         lhs.email == rhs.email &&

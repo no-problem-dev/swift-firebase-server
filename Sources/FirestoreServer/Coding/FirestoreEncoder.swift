@@ -1,10 +1,11 @@
 import Foundation
 
-/// Swift型をFirestoreValue/Documentに変換するエンコーダー
+/// Encodes `Encodable` values into Firestore REST field values.
 ///
-/// Codableな型をFirestore REST APIで使用可能な形式に変換する。
+/// `Date` becomes a `timestampValue` and `Data` a `bytesValue`; every other type follows the
+/// usual `Encodable` path, with integers becoming `integerValue`, floating-point values
+/// `doubleValue`, nested structs `mapValue`, and arrays `arrayValue`.
 ///
-/// 使用例:
 /// ```swift
 /// struct User: Codable {
 ///     let name: String
@@ -15,7 +16,7 @@ import Foundation
 /// let fields = try encoder.encode(User(name: "Alice", age: 30))
 /// // ["name": .string("Alice"), "age": .integer(30)]
 ///
-/// // snake_case変換を使用する場合
+/// // With snake_case conversion
 /// let snakeCaseEncoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
 /// let fields = try snakeCaseEncoder.encode(User(name: "Alice", age: 30))
 /// // ["name": .string("Alice"), "age": .integer(30)]
@@ -28,18 +29,18 @@ import Foundation
 /// // ["user_id": .string("123"), "display_name": .string("Alice")]
 /// ```
 public struct FirestoreEncoder: Sendable {
-    /// キーのエンコーディング戦略
     public let keyEncodingStrategy: KeyEncodingStrategy
 
-    /// イニシャライザ
-    /// - Parameter keyEncodingStrategy: キーのエンコーディング戦略（デフォルト: .useDefaultKeys）
+    /// - Parameter keyEncodingStrategy: How property names become field names. Defaults to
+    ///   writing them unchanged.
     public init(keyEncodingStrategy: KeyEncodingStrategy = .useDefaultKeys) {
         self.keyEncodingStrategy = keyEncodingStrategy
     }
 
-    /// Encodableな値をFirestoreフィールドマップに変換
-    /// - Parameter value: エンコードする値
-    /// - Returns: フィールド名とFirestoreValueのマップ
+    /// Encodes a value into the field map of a Firestore document.
+    ///
+    /// - Throws: `FirestoreEncodingError.topLevelNotObject` if the value does not encode to a
+    ///   map — an array or a bare scalar has no field names and cannot be a document.
     public func encode<T: Encodable>(_ value: T) throws -> [String: FirestoreValue] {
         let encoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: encoder)
@@ -50,9 +51,10 @@ public struct FirestoreEncoder: Sendable {
         return fields
     }
 
-    /// Encodableな値を単一のFirestoreValueに変換
-    /// - Parameter value: エンコードする値
-    /// - Returns: FirestoreValue
+    /// Encodes a value into a single field value, for anything that is not a whole document.
+    ///
+    /// Unlike `encode(_:)` this accepts scalars and arrays, which is what makes it usable for
+    /// query operands and single-field updates.
     public func encodeValue<T: Encodable>(_ value: T) throws -> FirestoreValue {
         let encoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: encoder)
@@ -164,7 +166,7 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
     }
 
     mutating func encode<T: Encodable>(_ value: T, forKey key: Key) throws {
-        // 特殊な型のハンドリング
+        // Types with a Firestore value of their own
         if let date = value as? Date {
             setField(key, .timestamp(date))
             return
@@ -174,7 +176,7 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
             return
         }
 
-        // 一般的なEncodable
+        // Everything else re-enters the encoder
         let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
         try value.encode(to: nestedEncoder)
         setField(key, nestedEncoder.value)
@@ -189,7 +191,8 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
             encoder: nestedEncoder,
             keyEncodingStrategy: keyEncodingStrategy
         )
-        // Note: 値は後で設定される
+        // The nested encoder's value is never written back under `key`, so whatever is encoded
+        // into this container is dropped. Encode nested values through encode(_:forKey:).
         return KeyedEncodingContainer(container)
     }
 
@@ -418,7 +421,7 @@ private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContain
 
 // MARK: - Error
 
-/// エンコーディングエラー
+/// A value that could not be encoded for Firestore.
 public enum FirestoreEncodingError: Error, Sendable {
     case topLevelNotObject
     case unsupportedType(Any.Type)

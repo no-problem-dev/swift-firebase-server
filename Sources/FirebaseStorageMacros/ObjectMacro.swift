@@ -1,15 +1,17 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Object`マクロの実装
+/// The implementation of `@Object`.
 ///
-/// このマクロは以下を生成:
-/// - `static var baseName: String`
-/// - `client: StorageClient`プロパティ
-/// - `parentPath: String`プロパティ
-/// - `objectId: String`プロパティ
-/// - `fileExtension: FileExtension`プロパティ
-/// - `init(client:parentPath:objectId:fileExtension:)`イニシャライザ
+/// Adds to the annotated struct:
+/// - `static let baseName: String`, holding the macro's argument
+/// - a `client: StorageClient` property
+/// - `parentPath: String`, `objectId: String`, and `fileExtension: FileExtension` properties
+/// - `init(client:parentPath:objectId:fileExtension:)`
+/// - conformance to `StorageObjectPathProtocol` and `Sendable`
+///
+/// Rejects anything that is not a struct with `StorageMacroError.requiresStruct`, and an argument
+/// that is not a plain string literal with `.missingObjectBaseName`.
 public struct ObjectMacro {}
 
 // MARK: - MemberMacro
@@ -25,7 +27,7 @@ extension ObjectMacro: MemberMacro {
             throw StorageMacroError.requiresStruct
         }
 
-        // ベース名を取得
+        // Read the base name from the attribute argument.
         guard let baseName = extractStringArgument(from: node) else {
             throw StorageMacroError.missingObjectBaseName
         }
@@ -37,27 +39,27 @@ extension ObjectMacro: MemberMacro {
             public static let baseName: String = \(literal: baseName)
             """)
 
-        // client プロパティ
+        // client property
         members.append("""
             public let client: StorageClient
             """)
 
-        // parentPath プロパティ
+        // parentPath property
         members.append("""
             public let parentPath: String
             """)
 
-        // objectId プロパティ
+        // objectId property
         members.append("""
             public let objectId: String
             """)
 
-        // fileExtension プロパティ
+        // fileExtension property
         members.append("""
             public let fileExtension: FileExtension
             """)
 
-        // イニシャライザ
+        // Initializer
         members.append("""
             public init(client: StorageClient, parentPath: String, objectId: String, fileExtension: FileExtension) {
                 self.client = client

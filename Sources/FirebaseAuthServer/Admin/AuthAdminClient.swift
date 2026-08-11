@@ -4,35 +4,34 @@ import FoundationNetworking
 #endif
 import Internal
 
-/// Firebase Auth Admin API クライアント
+/// Performs privileged Firebase Auth user management through the Identity Toolkit REST API.
 ///
-/// Firebase Auth のユーザー管理操作（削除など）を行うためのクライアント。
-/// サービスアカウント権限で動作し、GCP環境から自動的にアクセストークンを取得する。
+/// Where ``AuthClient`` only inspects a token a client presented, this client acts on the user
+/// directory itself, so it needs service account authority: outside the emulator it takes an access
+/// token from the ambient GCP environment — the metadata server on Cloud Run, or local `gcloud`
+/// credentials — rather than from anything the caller passes in.
 ///
-/// ## 使用例
+/// ## Example
 ///
 /// ```swift
-/// // 本番環境（Cloud Run / ローカル gcloud）
+/// // Production (Cloud Run, or local gcloud)
 /// let adminClient = AuthAdminClient(projectId: "my-project")
 ///
-/// // ユーザーを削除
+/// // Delete a user
 /// try await adminClient.deleteUser(uid: "user-123")
 ///
-/// // エミュレーター環境
+/// // Emulator
 /// let emulatorClient = AuthAdminClient.emulator(projectId: "demo-project")
 /// try await emulatorClient.deleteUser(uid: "user-123")
 /// ```
 public final class AuthAdminClient: Sendable {
-    /// プロジェクトID
     public let projectId: String
 
-    /// HTTPクライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
 
-    /// エミュレーター設定（nilの場合は本番環境）
+    /// The emulator to talk to, or `nil` to talk to the production Identity Toolkit.
     private let emulatorConfig: EmulatorSettings?
 
-    /// エミュレーター設定
     private struct EmulatorSettings: Sendable {
         let host: String
         let port: Int
@@ -40,34 +39,39 @@ public final class AuthAdminClient: Sendable {
 
     // MARK: - Initializers
 
-    /// 本番環境用の初期化
+    /// Creates a client against the production Identity Toolkit API.
     ///
-    /// GCP環境からサービスアカウントのアクセストークンを自動取得する。
+    /// Every call takes a fresh service account access token from the GCP environment the process
+    /// runs in, so nothing about credentials is passed here.
     ///
-    /// - Parameter projectId: Google Cloud プロジェクトID
+    /// - Parameter projectId: The Google Cloud project ID.
     public init(projectId: String) {
         self.projectId = projectId
         self.httpClientProvider = HTTPClientProvider()
         self.emulatorConfig = nil
     }
 
-    /// 本番環境用の初期化（HTTPClientProvider共有）
+    /// Creates a production client alongside an existing HTTP client provider.
     ///
     /// - Parameters:
-    ///   - projectId: Google Cloud プロジェクトID
-    ///   - httpClientProvider: 共有HTTPClientProvider
+    ///   - projectId: The Google Cloud project ID.
+    ///   - httpClientProvider: A provider shared with the other Firebase clients in the process.
+    ///
+    /// - Note: The Admin API requests go out over `URLSession.shared`, so passing a provider here does
+    ///   not put them on its connection pool.
     public init(projectId: String, httpClientProvider: HTTPClientProvider) {
         self.projectId = projectId
         self.httpClientProvider = httpClientProvider
         self.emulatorConfig = nil
     }
 
-    /// エミュレーター用の初期化
+    /// Creates a client against a local Firebase Auth emulator, authenticating with the emulator's
+    /// `owner` token instead of real credentials.
     ///
     /// - Parameters:
-    ///   - projectId: プロジェクトID
-    ///   - host: エミュレーターホスト（デフォルト: "localhost"）
-    ///   - port: エミュレーターポート（デフォルト: 9099）
+    ///   - projectId: The project ID the emulator was started with.
+    ///   - host: The emulator host. Defaults to `localhost`.
+    ///   - port: The emulator port. Defaults to 9099.
     public static func emulator(
         projectId: String,
         host: String = EmulatorConfig.defaultHost,
@@ -79,7 +83,6 @@ public final class AuthAdminClient: Sendable {
         )
     }
 
-    /// 内部初期化（エミュレーター用）
     private init(projectId: String, emulatorConfig: EmulatorSettings) {
         self.projectId = projectId
         self.httpClientProvider = HTTPClientProvider()
@@ -88,19 +91,22 @@ public final class AuthAdminClient: Sendable {
 
     // MARK: - Public Methods
 
-    /// ユーザーを削除する
+    /// Deletes a user account from Firebase Auth.
     ///
-    /// Firebase Auth からユーザーアカウントを完全に削除する。
-    /// この操作は元に戻せない。
+    /// Sends `POST /v1/accounts:delete` to the Identity Toolkit with the UID as `localId`. The account
+    /// and its sign-in identities are gone for good; there is no undo and no soft-delete window.
     ///
-    /// - Parameter uid: 削除するユーザーのUID（Firebase Auth UID）
-    /// - Throws: `AuthError.deleteUserFailed` 削除に失敗した場合
-    /// - Throws: `AuthError.adminAPIFailed` APIリクエストに失敗した場合
+    /// - Parameter uid: The Firebase Auth UID of the account to delete.
+    /// - Throws: ``AuthError/adminAPIFailed(statusCode:message:)`` for any error the API reports, or
+    ///   ``AuthError/deleteUserFailed(reason:)`` if the request could not be formed or the reply was
+    ///   not an HTTP response.
     ///
-    /// ## 注意事項
+    /// ## Notes
     ///
-    /// - ユーザーが存在しない場合もエラーにはならない（冪等性）
-    /// - Firestore や Storage のデータは別途削除が必要
+    /// - Deleting a UID that does not exist succeeds, so the call is safe to retry. That rests on the
+    ///   API answering with the message `USER_NOT_FOUND`; any other wording surfaces as an error.
+    /// - Only the Auth record goes. Documents in Firestore and objects in Cloud Storage that belong to
+    ///   the user have to be deleted separately.
     public func deleteUser(uid: String) async throws {
         let url = try buildDeleteUserURL()
         let token = try await getAccessToken()
@@ -110,14 +116,14 @@ public final class AuthAdminClient: Sendable {
 
     // MARK: - Private Methods
 
-    /// 削除用URLを構築
+    /// Builds the `accounts:delete` endpoint URL for either the emulator or production.
     private func buildDeleteUserURL() throws -> URL {
         let baseURL: String
         if let emulator = emulatorConfig {
-            // エミュレーター: http://{host}:{port}/identitytoolkit.googleapis.com/v1/accounts:delete
+            // Emulator: http://{host}:{port}/identitytoolkit.googleapis.com/v1/accounts:delete
             baseURL = "http://\(emulator.host):\(emulator.port)/identitytoolkit.googleapis.com/v1"
         } else {
-            // 本番: https://identitytoolkit.googleapis.com/v1
+            // Production: https://identitytoolkit.googleapis.com/v1
             baseURL = "https://identitytoolkit.googleapis.com/v1"
         }
 
@@ -128,24 +134,29 @@ public final class AuthAdminClient: Sendable {
         return url
     }
 
-    /// アクセストークンを取得
+    /// Returns the bearer token for an Admin API call: the emulator's fixed `owner` token, or a
+    /// service account token from the GCP environment.
     private func getAccessToken() async throws -> String {
         if emulatorConfig != nil {
-            // エミュレーターでは "owner" トークンを使用
+            // The emulator accepts the literal "owner" token
             return "owner"
         }
-        // 本番環境ではGCP環境から取得
+        // In production, take the token from the GCP environment
         return try await GCPEnvironment.shared.getAccessToken()
     }
 
-    /// DELETE リクエストを実行（POST accounts:delete）
+    /// Sends the deletion request and maps the reply.
+    ///
+    /// Despite the name, this is an HTTP `POST` to `accounts:delete`. Only `200` counts as success,
+    /// with the one exception that an error body reading `USER_NOT_FOUND` is treated as success so
+    /// that repeated deletions stay idempotent.
     private func executeDelete(url: URL, token: String, uid: String) async throws {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Firebase Auth Identity Toolkit API は localId でユーザーを指定
+        // The Identity Toolkit API names the user with `localId`, not `uid`
         let body: [String: Any] = ["localId": uid]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -155,18 +166,18 @@ public final class AuthAdminClient: Sendable {
             throw AuthError.deleteUserFailed(reason: "Invalid response type")
         }
 
-        // 成功: 200
+        // Success: 200
         switch httpResponse.statusCode {
         case 200:
-            return // 成功
+            return // success
 
         default:
-            // エラーレスポンスを解析
+            // Dig the message out of the error body
             let message: String
             if let errorResponse = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let error = errorResponse["error"] as? [String: Any],
                let errorMessage = error["message"] as? String {
-                // USER_NOT_FOUND の場合は成功とみなす（冪等性）
+                // Count USER_NOT_FOUND as success, so deleting twice is harmless
                 if errorMessage == "USER_NOT_FOUND" {
                     return
                 }

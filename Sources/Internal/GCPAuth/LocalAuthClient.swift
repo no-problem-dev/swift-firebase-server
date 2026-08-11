@@ -1,13 +1,18 @@
 import Foundation
 
-/// ローカル開発環境用の認証クライアント
+/// Reads the access token and project ID from the gcloud CLI on a developer machine.
 ///
-/// gcloud CLI を使用してアクセストークンとプロジェクトIDを取得する。
-/// 事前に `gcloud auth application-default login` の実行が必要。
+/// Requires `gcloud auth application-default login` to have been run; no service account key
+/// file is read, so `GOOGLE_APPLICATION_CREDENTIALS` has no effect here. Every call spawns a
+/// process and waits for it, which is slow enough that the result is worth caching.
 struct LocalAuthClient: Sendable {
-    /// gcloud CLI からアクセストークンを取得
-    /// - Returns: アクセストークン
-    /// - Throws: `GCPAuthError` 取得に失敗した場合
+    /// Runs `gcloud auth application-default print-access-token` and returns its output.
+    ///
+    /// The token comes from the application default credentials, not from whatever account
+    /// `gcloud auth login` set, and gcloud reports no expiry with it.
+    ///
+    /// - Throws: `GCPAuthError.gcloudNotAvailable` if gcloud cannot be launched, or
+    ///   `.gcloudExecutionFailed` if it exits non-zero or prints nothing.
     func fetchToken() async throws -> String {
         try await executeGcloudCommand(
             arguments: ["gcloud", "auth", "application-default", "print-access-token"],
@@ -18,9 +23,14 @@ struct LocalAuthClient: Sendable {
         )
     }
 
-    /// gcloud CLI からプロジェクトIDを取得
-    /// - Returns: プロジェクトID
-    /// - Throws: `GCPAuthError` 取得に失敗した場合
+    /// Runs `gcloud config get-value project` and returns its output.
+    ///
+    /// Reports whichever project the active gcloud configuration points at, which is not
+    /// necessarily the one the application default credentials were issued for.
+    ///
+    /// - Throws: `GCPAuthError.gcloudNotAvailable` if gcloud cannot be launched, or
+    ///   `.projectIdFetchFailed` if it exits non-zero or no project is set, in which case the
+    ///   message tells the caller to run `gcloud config set project`.
     func fetchProjectId() async throws -> String {
         try await executeGcloudCommand(
             arguments: ["gcloud", "config", "get-value", "project"],
@@ -31,7 +41,17 @@ struct LocalAuthClient: Sendable {
         )
     }
 
-    /// gcloud CLI コマンドを実行
+    /// Runs a command through `/usr/bin/env` and returns its standard output, trimmed.
+    ///
+    /// Blocks the calling thread in `waitUntilExit` rather than suspending, and reads both pipes
+    /// only after the process has exited, so a command that filled a pipe buffer would deadlock.
+    /// The gcloud invocations here print a single short line.
+    ///
+    /// - Parameters:
+    ///   - arguments: The command and its arguments, the executable name first.
+    ///   - errorMapper: Builds the error to throw from a failure message, so each caller can
+    ///     report the failure as its own case.
+    ///   - emptyErrorMessage: The message to map when the command succeeds but prints nothing.
     private func executeGcloudCommand(
         arguments: [String],
         errorMapper: @Sendable (String) -> GCPAuthError,

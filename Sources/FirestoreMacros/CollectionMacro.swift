@@ -1,15 +1,19 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Collection`マクロの実装
+/// The expansion behind `@Collection`.
 ///
-/// enumに適用し、コレクションパスアクセサとモデル型エイリアスを自動生成する。
-/// ネストされている場合は自動的にサブコレクションとして扱われる。
+/// Applied to an enum, it generates `collectionId`, `typealias Model`, and the path builders.
+/// Nesting is read from the lexical context, so an enum inside another `@Collection` enum
+/// becomes a sub-collection whose path builders take one document ID per ancestor, outermost
+/// first. A non-enum declaration throws "@Collection can only be applied to enums", and a
+/// missing or unreadable argument throws "@Collection requires collectionId and model
+/// arguments".
 ///
-/// 生成例:
+/// Expansion:
 /// ```swift
 /// @FirestoreSchema
-/// enum Schema {
+/// struct Schema {
 ///     @Collection("users", model: User.self)
 ///     enum Users {
 ///         // collectionId = "users"
@@ -33,17 +37,17 @@ public struct CollectionMacro: MemberMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // enumであることを確認
+        // Reject anything that is not an enum
         guard declaration.as(EnumDeclSyntax.self) != nil else {
             throw MacroError.message("@Collection can only be applied to enums")
         }
 
-        // 引数を取得
+        // Read the arguments
         guard let args = extractArguments(from: node) else {
             throw MacroError.message("@Collection requires collectionId and model arguments: @Collection(\"name\", model: Type.self)")
         }
 
-        // 親コレクションの階層を取得（最も近い親から順）
+        // Enclosing collections, nearest parent first
         let parentCollections = findParentCollections(in: context)
         let depth = parentCollections.count
 
@@ -60,10 +64,10 @@ public struct CollectionMacro: MemberMacro {
             """)
 
         if depth == 0 {
-            // トップレベルコレクション
+            // A root collection
             members.append(contentsOf: generateTopLevelMembers())
         } else {
-            // サブコレクション（深さに応じた引数を生成）
+            // A sub-collection: one path parameter per ancestor
             members.append(contentsOf: generateSubCollectionMembers(
                 parentCollections: parentCollections
             ))
@@ -96,12 +100,12 @@ public struct CollectionMacro: MemberMacro {
     ) -> [DeclSyntax] {
         let depth = parentCollections.count
 
-        // 引数名を生成: p1, p2, ... (親のドキュメントID)
+        // Parameter names p1, p2, ... hold the ancestors' document IDs, outermost first
         let paramNames = (1...depth).map { "p\($0)" }
         let paramDecls = paramNames.map { "_ \($0): String" }.joined(separator: ", ")
 
-        // 親のdocumentPath呼び出しを構築
-        // 例: depth=2の場合、Books.documentPath(p1, p2) を呼ぶ
+        // Delegate to the nearest parent's documentPath, which unwinds the rest of the chain
+        // e.g. at depth 2 this calls Books.documentPath(p1, p2)
         let immediateParent = parentCollections[0]
         let parentArgs = paramNames.joined(separator: ", ")
 
@@ -131,7 +135,7 @@ public struct CollectionMacro: MemberMacro {
 
         for arg in arguments {
             if arg.label == nil {
-                // 最初の引数（ラベルなし）= collectionId
+                // The first, unlabeled argument is the collection ID
                 if let stringLiteral = arg.expression.as(StringLiteralExprSyntax.self),
                    let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self) {
                     collectionId = segment.content.text
@@ -153,8 +157,11 @@ public struct CollectionMacro: MemberMacro {
         return (cid, mt)
     }
 
-    /// 親コレクションの階層を取得（最も近い親から順に）
-    /// 戻り値: ["Books", "Users"] のように、直近の親から順に並んだ配列
+    /// Walks the lexical context for enclosing enums that carry `@Collection`.
+    ///
+    /// The result runs from the nearest parent outwards, e.g. `["Books", "Users"]`, and its
+    /// count is the nesting depth. Enclosing enums without the attribute are not counted, so
+    /// they do not add a path parameter.
     private static func findParentCollections(in context: some MacroExpansionContext) -> [String] {
         var parents: [String] = []
 
@@ -163,7 +170,7 @@ public struct CollectionMacro: MemberMacro {
                 continue
             }
 
-            // このenumに@Collectionアトリビュートが付いているか確認
+            // Does this enum carry the @Collection attribute?
             let hasCollectionAttribute = enumDecl.attributes.contains { attr in
                 guard let attribute = attr.as(AttributeSyntax.self),
                       let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) else {

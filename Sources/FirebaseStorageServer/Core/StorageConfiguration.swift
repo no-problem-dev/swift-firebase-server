@@ -1,31 +1,46 @@
 import Foundation
 import Internal
 
-/// Cloud Storageクライアントの設定
+/// The endpoints, bucket, and timeout a storage client sends its requests with.
 public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, Sendable {
-    /// Google Cloud プロジェクトID
+    /// The Google Cloud project that owns the bucket.
+    ///
+    /// Requests address objects by bucket, so this never appears in a request URL. It is carried
+    /// for identification and to derive the default emulator bucket name.
     public let projectId: String
 
-    /// バケット名
     public let bucket: String
 
-    /// ベースURL（本番 or エミュレーター）
+    /// The root the metadata, download, and delete endpoints hang off.
+    ///
+    /// `https://storage.googleapis.com/storage/v1` in production, or the emulator's `/v0` root.
     public let baseURL: URL
 
-    /// アップロード用ベースURL
+    /// The root the upload endpoint hangs off.
+    ///
+    /// The JSON API serves uploads from a separate host path,
+    /// `https://storage.googleapis.com/upload/storage/v1`. Against the emulator it is the same
+    /// `/v0` root as ``baseURL``.
     public let uploadBaseURL: URL
 
-    /// リクエストタイムアウト（秒）
+    /// The deadline applied to each request, in seconds.
+    ///
+    /// It covers the whole request, including the body transfer, so it also caps how long a large
+    /// upload or download may take. The value is truncated to whole seconds when the request is
+    /// built, so anything below one second becomes a zero-second deadline.
     public let timeout: TimeInterval
 
-    /// エミュレーター使用フラグ
+    /// Whether requests go to the Storage emulator.
+    ///
+    /// It also switches ``publicURL(for:)`` to an `http://` URL on the emulator host.
     public let useEmulator: Bool
 
-    /// 本番環境用の初期化
+    /// Creates a configuration pointed at production Cloud Storage.
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - bucket: バケット名（例: "my-project.appspot.com"）
-    ///   - timeout: タイムアウト秒数（デフォルト: 60秒）
+    ///   - projectId: The Google Cloud project that owns the bucket.
+    ///   - bucket: The bucket name, for example `"my-project.appspot.com"`.
+    ///   - timeout: The per-request deadline in seconds. Fractional values truncate to whole
+    ///     seconds when the request is built.
     public init(
         projectId: String,
         bucket: String,
@@ -40,13 +55,16 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
         self.emulatorHost = nil
     }
 
-    /// エミュレーター用の初期化
+    /// Creates a configuration pointed at the Firebase Storage emulator.
+    ///
+    /// Both the read and the upload endpoints become the emulator's `/v0` root on the same host,
+    /// and no real credentials are involved — the client sends the literal token `"owner"`.
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - bucket: バケット名
-    ///   - host: エミュレーターホスト（デフォルト: "localhost"）
-    ///   - port: エミュレーターポート（デフォルト: 9199）
-    ///   - timeout: タイムアウト秒数（デフォルト: 60秒）
+    ///   - projectId: The project ID the emulator was started with.
+    ///   - bucket: The bucket name.
+    ///   - host: The host the emulator listens on.
+    ///   - port: The port the emulator listens on. 9199 is the Firebase default for Storage.
+    ///   - timeout: The per-request deadline in seconds.
     public static func emulator(
         projectId: String,
         bucket: String,
@@ -66,14 +84,17 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
         )
     }
 
-    /// `EmulatorConfigurable` プロトコル準拠。バケット名を `"\(projectId).appspot.com"` で自動補完する。
+    /// Creates an emulator configuration, defaulting the bucket to `"{projectId}.appspot.com"`.
+    ///
+    /// This is the `EmulatorConfigurable` requirement, which has no bucket parameter. Call the
+    /// overload that takes `bucket:` when the bucket does not follow that naming.
     public static func emulator(
         projectId: String,
         host: String,
         port: Int,
         timeout: TimeInterval
     ) -> StorageConfiguration {
-        // バケット名はprojectIdから推測
+        // Derive the bucket name from the project ID.
         emulator(
             projectId: projectId,
             bucket: "\(projectId).appspot.com",
@@ -83,10 +104,11 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
         )
     }
 
-    /// エミュレーターホスト（公開URL生成用）
+    /// The `host:port` the emulator answers on, used only to build public URLs.
+    ///
+    /// `nil` in production.
     internal let emulatorHost: String?
 
-    /// 内部初期化
     private init(
         projectId: String,
         bucket: String,
@@ -107,9 +129,13 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
 
     // MARK: - URL Builders
 
-    /// オブジェクトの公開URL
-    /// - Parameter path: オブジェクトパス（例: "images/photo.jpg"）
-    /// - Returns: 公開URL
+    /// Builds the unauthenticated URL for an object.
+    ///
+    /// Returns `https://storage.googleapis.com/{bucket}/{path}`, or `http://{host}:{port}/{bucket}/{path}`
+    /// when configured for the emulator. The URL is unsigned and carries no token, so it never
+    /// expires and only resolves for objects the bucket grants public read on. The path is
+    /// interpolated as given — no percent-encoding is applied here beyond what `URL` parsing does.
+    /// - Parameter path: The object name inside the bucket, for example `"images/photo.jpg"`.
     public func publicURL(for path: String) -> URL {
         if useEmulator, let host = emulatorHost {
             return URL(string: "http://\(host)/\(bucket)/\(path)")!

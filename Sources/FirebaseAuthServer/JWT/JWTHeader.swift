@@ -1,24 +1,23 @@
 import Foundation
 
-/// JWT ヘッダー
+/// The header of a Firebase ID token.
 ///
-/// Firebase ID トークンの検証に必要なヘッダー情報を保持。
-/// - `alg`: 署名アルゴリズム（Firebase は RS256 を使用、エミュレーターは none）
-/// - `kid`: 公開鍵の識別子（オプション、エミュレーターでは省略される）
+/// Only two fields matter to verification:
+/// - `alg`: the signing algorithm. Firebase uses `RS256`; the emulator uses `none`.
+/// - `kid`: the key ID that selects one of Google's published certificates. The emulator omits it.
 struct JWTHeader: Codable, Sendable {
-    /// 署名アルゴリズム
+    /// The signing algorithm.
     ///
-    /// Firebase ID トークンでは `RS256` 固定
-    /// エミュレーターでは `none`
+    /// A production verification rejects anything other than `RS256`. In emulator mode the field is
+    /// never looked at, so the emulator's `none` passes.
     let alg: String
 
-    /// 鍵ID（オプション）
+    /// The key ID, which picks one certificate out of Google's key set.
     ///
-    /// Google の公開鍵エンドポイントから対応する公開鍵を取得するために使用
-    /// エミュレーターモードでは省略される
+    /// A production verification fails without it. Emulator tokens leave it out.
     let kid: String?
 
-    /// トークンタイプ（オプション）
+    /// The `typ` header. It is decoded but never checked, so a token claiming any type is accepted.
     let typ: String?
 
     init(alg: String, kid: String? = nil, typ: String? = nil) {

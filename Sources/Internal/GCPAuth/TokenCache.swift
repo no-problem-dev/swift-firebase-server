@@ -1,21 +1,29 @@
 import Foundation
 
-/// アクセストークンのキャッシュ
+/// A fetched access token together with the moment it stops being usable.
 struct TokenCache: Sendable {
-    /// アクセストークン
     let token: String
-    /// 有効期限
+
+    /// When the token truly expires, before the refresh margin is taken off.
     let expiresAt: Date
 
-    /// キャッシュが有効かどうか（有効期限の5分前まで有効とみなす）
+    /// Whether the token is still worth using, counting it as expired five minutes early.
+    ///
+    /// The margin absorbs clock skew and the time a request spends in flight, so a token handed
+    /// out here is good for at least another five minutes.
     var isValid: Bool {
         Date() < expiresAt.addingTimeInterval(-300)
     }
 
-    /// トークンと有効期間（秒）から初期化
+    /// Creates an entry that expires the given number of seconds from now.
+    ///
+    /// The lifetime is measured from this call rather than from the moment the issuer minted the
+    /// token, so any delay in transit is spent out of it.
+    ///
     /// - Parameters:
-    ///   - token: アクセストークン
-    ///   - expiresIn: 有効期間（秒）
+    ///   - token: The token as returned by the metadata server or gcloud.
+    ///   - expiresIn: The lifetime the issuer reported, in seconds. A value at or below 300
+    ///     produces an entry that is already invalid.
     init(token: String, expiresIn: Int) {
         self.token = token
         self.expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))

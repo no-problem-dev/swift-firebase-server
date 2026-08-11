@@ -1,19 +1,19 @@
 import Foundation
 
-/// JWT デコーダー
+/// Splits a Firebase ID token into its header, payload, and signature.
 ///
-/// Firebase ID トークン（JWT）を解析し、ヘッダー・ペイロード・署名に分解する。
-/// Base64URL デコードと JSON パースを担当。
+/// This is decoding only: Base64URL and JSON, with no signature or claim check of any kind. Treat
+/// everything it returns as attacker-supplied until ``IDTokenVerifier`` has passed it.
 struct JWTDecoder: Sendable {
     init() {}
 
-    /// JWT トークンを分解してデコード
-    /// - Parameter token: JWT 文字列（"xxxxx.yyyyy.zzzzz" 形式）
-    /// - Returns: デコード結果（ヘッダー、ペイロード、署名、署名対象データ）
-    /// - Throws: `AuthError.tokenInvalid` デコードに失敗した場合
+    /// Decodes a JWT into its three parts plus the exact bytes the signature covers.
+    /// - Parameter token: A JWT in `xxxxx.yyyyy.zzzzz` form.
+    /// - Throws: ``AuthError/tokenInvalid(reason:)`` if the token does not have three parts, if a part
+    ///   is not valid Base64URL, or if the header or payload JSON is missing a required claim.
     func decode(_ token: String) throws -> DecodedJWT {
-        // omittingEmptySubsequences: false で空のシグネチャ部分も保持
-        // Firebase エミュレーターは署名なしのトークン（header.payload.）を返すため
+        // omittingEmptySubsequences: false keeps an empty signature part,
+        // because the Firebase emulator returns unsigned tokens shaped as `header.payload.`
         let parts = token.split(separator: ".", omittingEmptySubsequences: false)
 
         guard parts.count == 3 else {
@@ -26,7 +26,7 @@ struct JWTDecoder: Sendable {
         let payloadPart = String(parts[1])
         let signaturePart = String(parts[2])
 
-        // ヘッダーのデコード
+        // Decode the header
         let headerData = try decodeBase64URL(headerPart, component: "header")
         let header: JWTHeader
         do {
@@ -35,7 +35,7 @@ struct JWTDecoder: Sendable {
             throw AuthError.tokenInvalid(reason: "Failed to parse JWT header: \(error)")
         }
 
-        // ペイロードのデコード
+        // Decode the payload
         let payloadData = try decodeBase64URL(payloadPart, component: "payload")
         let payload: JWTPayload
         do {
@@ -44,7 +44,7 @@ struct JWTDecoder: Sendable {
             throw AuthError.tokenInvalid(reason: "Failed to parse JWT payload: \(error)")
         }
 
-        // 署名のデコード（エミュレーターモードでは空の場合がある）
+        // Decode the signature, which can be empty in emulator mode
         let signature: Data
         if signaturePart.isEmpty {
             signature = Data()
@@ -52,7 +52,7 @@ struct JWTDecoder: Sendable {
             signature = try decodeBase64URL(signaturePart, component: "signature")
         }
 
-        // 署名対象データ（header.payload）
+        // The bytes the signature covers: header.payload, still Base64URL-encoded
         let signedData = Data("\(headerPart).\(payloadPart)".utf8)
 
         return DecodedJWT(
@@ -63,18 +63,17 @@ struct JWTDecoder: Sendable {
         )
     }
 
-    /// Base64URL デコード
+    /// Decodes Base64URL by translating it to standard Base64 and restoring the padding JWT strips.
     /// - Parameters:
-    ///   - string: Base64URL エンコードされた文字列
-    ///   - component: エラーメッセージ用のコンポーネント名
-    /// - Returns: デコードされたデータ
+    ///   - string: The Base64URL-encoded text.
+    ///   - component: The part name to quote in the error message.
     private func decodeBase64URL(_ string: String, component: String) throws -> Data {
-        // Base64URL → 標準 Base64 変換
+        // Base64URL to standard Base64
         var base64 = string
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
 
-        // パディング追加
+        // Restore padding
         let paddingLength = (4 - base64.count % 4) % 4
         base64 += String(repeating: "=", count: paddingLength)
 
@@ -90,17 +89,15 @@ struct JWTDecoder: Sendable {
 
 // MARK: - DecodedJWT
 
-/// デコードされた JWT
+/// The parts of a JWT after decoding, before any verification.
 struct DecodedJWT: Sendable {
-    /// JWT ヘッダー
     let header: JWTHeader
 
-    /// JWT ペイロード（クレーム）
     let payload: JWTPayload
 
-    /// 署名バイナリ
+    /// The raw signature bytes, empty for an unsigned emulator token.
     let signature: Data
 
-    /// 署名対象データ（header.payload）
+    /// The bytes the signature covers: the Base64URL header and payload joined by a dot.
     let signedData: Data
 }

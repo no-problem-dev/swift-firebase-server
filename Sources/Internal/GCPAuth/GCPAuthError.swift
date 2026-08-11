@@ -1,22 +1,31 @@
 import Foundation
 
-/// GCP認証関連のエラー
+/// A failure while obtaining GCP credentials, from either the metadata server or gcloud.
 public enum GCPAuthError: Error, LocalizedError, Sendable {
-    /// メタデータサーバーへの接続失敗
+    /// The request to the metadata server never completed, which usually means the process is
+    /// not running on Cloud Run.
     case metadataServerUnavailable
-    /// トークンの取得に失敗
+    /// The metadata server answered the token request with a status other than 200. The payload
+    /// carries that status.
     case tokenFetchFailed(String)
-    /// トークンのパースに失敗
+    /// The token response was not JSON carrying both `access_token` and `expires_in`.
     case tokenParseFailed
-    /// プロジェクトIDの取得に失敗
+    /// The project ID could not be read, from the metadata server or from gcloud. The payload
+    /// says which and why.
     case projectIdFetchFailed(String)
-    /// gcloud CLIが利用できない
+    /// The gcloud executable could not be launched at all. Install the Google Cloud SDK.
     case gcloudNotAvailable
-    /// gcloud CLIの実行に失敗
+    /// gcloud ran but exited non-zero, or printed nothing. The payload carries its standard
+    /// error output.
     case gcloudExecutionFailed(String)
-    /// 認証プロバイダーが初期化されていない
+    /// An access token was requested before its provider had been set up.
+    ///
+    /// Nothing in this package throws this case.
     case providerNotInitialized
-    /// 環境検出に失敗（Cloud RunでもローカルでもなくGCP環境を特定できない）
+    /// Neither Cloud Run nor a usable local setup could be identified.
+    ///
+    /// Nothing in this package throws this case: detection falls back to the local mode rather
+    /// than failing, so a machine without gcloud surfaces `gcloudNotAvailable` instead.
     case environmentDetectionFailed
 
     public var errorDescription: String? {

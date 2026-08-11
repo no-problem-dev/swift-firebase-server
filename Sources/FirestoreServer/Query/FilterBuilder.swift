@@ -2,21 +2,21 @@ import Foundation
 
 // MARK: - FilterBuilder
 
-/// フィルター条件を構築するためのResultBuilder
+/// A result builder that assembles a query's filter clause declaratively.
 ///
-/// フィルター条件を宣言的に記述できる。
-/// トップレベルに置けるフィルターは1つのみ。
-/// 複数条件を組み合わせる場合は `And` または `Or` で明示的に囲む必要がある。
+/// Exactly one filter may reach the top level of the block. Two conditions written side by
+/// side are two top-level filters and trap at runtime, so anything beyond a single condition
+/// has to be wrapped in an explicit `And { }` or `Or { }` group. An empty block traps as well.
 ///
-/// ## 基本的な使用例
+/// ## Basic usage
 ///
 /// ```swift
-/// // 単一条件（トップレベルに1つのみ許可）
+/// // A single condition (the top level accepts exactly one)
 /// query.filter {
 ///     Field("status") == "active"
 /// }
 ///
-/// // 複数条件は And/Or で囲む
+/// // Group several conditions with And/Or
 /// query.filter {
 ///     And {
 ///         Field("status") == "active"
@@ -25,7 +25,11 @@ import Foundation
 /// }
 /// ```
 ///
-/// ## 条件分岐
+/// ## Conditional branching
+///
+/// `if`, `if let`, `for`, and `#available` are supported, but the block still has to end up
+/// with exactly one top-level filter. The shape below traps as soon as `onlyPublished` is
+/// `true`, because it then yields two — put both conditions inside `And { }` instead:
 ///
 /// ```swift
 /// query.filter {
@@ -36,7 +40,10 @@ import Foundation
 /// }
 /// ```
 ///
-/// ## 論理グループ化
+/// ## Logical grouping
+///
+/// `And` and `Or` nest inside each other freely, but two groups written side by side are still
+/// two top-level filters and trap the same way — one group has to contain the other:
 ///
 /// ```swift
 /// query.filter {
@@ -52,75 +59,62 @@ import Foundation
 /// ```
 @resultBuilder
 public struct FilterBuilder {
-    /// 単一フィルターをそのまま返す
     public static func buildExpression(_ filter: FieldFilter) -> [any QueryFilterProtocol] {
         [filter]
     }
 
-    /// 単一UnaryFilterをそのまま返す
     public static func buildExpression(_ filter: UnaryFilter) -> [any QueryFilterProtocol] {
         [filter]
     }
 
-    /// CompositeFilterをそのまま返す
     public static func buildExpression(_ filter: CompositeFilter) -> [any QueryFilterProtocol] {
         [filter]
     }
 
-    /// QueryFilterをそのまま返す
     public static func buildExpression(_ filter: QueryFilter) -> [any QueryFilterProtocol] {
         [filter]
     }
 
-    /// And構造体から生成されたCompositeFilterを返す
     public static func buildExpression(_ and: And) -> [any QueryFilterProtocol] {
         [and.filter]
     }
 
-    /// Or構造体から生成されたCompositeFilterを返す
     public static func buildExpression(_ or: Or) -> [any QueryFilterProtocol] {
         [or.filter]
     }
 
-    /// 複数のフィルター配列を結合
     public static func buildBlock(_ components: [any QueryFilterProtocol]...) -> [any QueryFilterProtocol] {
         components.flatMap { $0 }
     }
 
-    /// 空のブロック
     public static func buildBlock() -> [any QueryFilterProtocol] {
         []
     }
 
-    /// Optional展開（if let）
     public static func buildOptional(_ component: [any QueryFilterProtocol]?) -> [any QueryFilterProtocol] {
         component ?? []
     }
 
-    /// if-else の true 分岐
     public static func buildEither(first component: [any QueryFilterProtocol]) -> [any QueryFilterProtocol] {
         component
     }
 
-    /// if-else の false 分岐
     public static func buildEither(second component: [any QueryFilterProtocol]) -> [any QueryFilterProtocol] {
         component
     }
 
-    /// for-in ループ
     public static func buildArray(_ components: [[any QueryFilterProtocol]]) -> [any QueryFilterProtocol] {
         components.flatMap { $0 }
     }
 
-    /// #available などの可用性チェック
     public static func buildLimitedAvailability(_ component: [any QueryFilterProtocol]) -> [any QueryFilterProtocol] {
         component
     }
 
-    /// 最終結果を構築
+    /// Unwraps the block's single top-level filter.
     ///
-    /// トップレベルでは単一のフィルターのみ許可。
-    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要がある。
+    /// - Precondition: the block produced exactly one filter. Zero filters, or two or more of
+    ///   them, trap with `fatalError` — combine them with `And { }` or `Or { }` first.
     public static func buildFinalResult(_ component: [any QueryFilterProtocol]) -> QueryFilter {
         switch component.count {
         case 0:
@@ -135,9 +129,11 @@ public struct FilterBuilder {
 
 // MARK: - And Grouping
 
-/// AND条件をグループ化するための構造体
+/// An AND group of conditions, written as a block.
 ///
-/// FilterBuilder内で明示的にANDグループを作成する。
+/// Produces a Firestore `compositeFilter` with `op: "AND"`. Groups nest, and Firestore
+/// evaluates the resulting tree in disjunctive normal form — a query whose expansion exceeds
+/// 30 disjunctions is rejected by the server.
 ///
 /// ```swift
 /// query.filter {
@@ -148,11 +144,12 @@ public struct FilterBuilder {
 /// }
 /// ```
 public struct And: Sendable {
-    /// 内部のCompositeFilter
+    /// The group as a Firestore `compositeFilter` with `op: "AND"`.
     public let filter: CompositeFilter
 
-    /// AND条件を構築
-    /// - Parameter content: フィルター条件を生成するクロージャ
+    /// Creates an AND group from the conditions in the block.
+    /// - Parameter content: Block producing the conditions to combine. Unlike the top level of
+    ///   `filter { }`, any number of conditions may sit side by side here, including none.
     public init(@AndFilterBuilder content: () -> [any QueryFilterProtocol]) {
         let filters = content()
         self.filter = CompositeFilter(
@@ -162,7 +159,7 @@ public struct And: Sendable {
     }
 }
 
-/// And専用のResultBuilder（常にフィルター配列を返す）
+/// Result builder backing `And`, which collects any number of conditions into an array.
 @resultBuilder
 public struct AndFilterBuilder {
     public static func buildExpression(_ filter: FieldFilter) -> [any QueryFilterProtocol] {
@@ -212,9 +209,11 @@ public struct AndFilterBuilder {
 
 // MARK: - Or Grouping
 
-/// OR条件をグループ化するための構造体
+/// An OR group of conditions, written as a block.
 ///
-/// FilterBuilder内で明示的にORグループを作成する。
+/// Produces a Firestore `compositeFilter` with `op: "OR"`. Each branch of an OR is a
+/// disjunction, and Firestore rejects a query whose disjunctive normal form exceeds 30 of
+/// them; an OR across different fields also needs a composite index.
 ///
 /// ```swift
 /// query.filter {
@@ -225,11 +224,12 @@ public struct AndFilterBuilder {
 /// }
 /// ```
 public struct Or: Sendable {
-    /// 内部のCompositeFilter
+    /// The group as a Firestore `compositeFilter` with `op: "OR"`.
     public let filter: CompositeFilter
 
-    /// OR条件を構築
-    /// - Parameter content: フィルター条件を生成するクロージャ
+    /// Creates an OR group from the conditions in the block.
+    /// - Parameter content: Block producing the conditions to combine. Unlike the top level of
+    ///   `filter { }`, any number of conditions may sit side by side here, including none.
     public init(@OrFilterBuilder content: () -> [any QueryFilterProtocol]) {
         let filters = content()
         self.filter = CompositeFilter(
@@ -239,7 +239,7 @@ public struct Or: Sendable {
     }
 }
 
-/// Or専用のResultBuilder（常にフィルター配列を返す）
+/// Result builder backing `Or`, which collects any number of conditions into an array.
 @resultBuilder
 public struct OrFilterBuilder {
     public static func buildExpression(_ filter: FieldFilter) -> [any QueryFilterProtocol] {
@@ -290,15 +290,16 @@ public struct OrFilterBuilder {
 // MARK: - Query Extension
 
 extension Query {
-    /// FilterBuilder DSLを使用してフィルター条件を追加
+    /// Adds a filter written with the builder DSL.
     ///
-    /// トップレベルでは単一のフィルターのみ許可される。
-    /// 複数条件を組み合わせる場合は明示的に`And`または`Or`で囲む必要がある。
+    /// The block must produce exactly one top-level filter; group anything longer with an
+    /// explicit `And { }` or `Or { }`. A filter already on the query is not replaced — the two
+    /// are combined with AND.
     ///
-    /// ## 使用例
+    /// ## Examples
     ///
     /// ```swift
-    /// // 単一条件のフィルタリング
+    /// // Single condition
     /// let activeUsers = try await schema.users.execute(
     ///     schema.users.query()
     ///         .filter {
@@ -306,7 +307,7 @@ extension Query {
     ///         }
     /// )
     ///
-    /// // 複数条件（明示的なAnd）
+    /// // Several conditions, grouped explicitly with And
     /// let users = try await schema.users.execute(
     ///     schema.users.query()
     ///         .filter {
@@ -320,7 +321,7 @@ extension Query {
     ///         }
     /// )
     ///
-    /// // OR条件
+    /// // OR condition
     /// let admins = try await schema.users.execute(
     ///     schema.users.query()
     ///         .filter {
@@ -331,7 +332,7 @@ extension Query {
     ///         }
     /// )
     ///
-    /// // ネストした条件
+    /// // Nested groups
     /// let products = try await schema.products.execute(
     ///     schema.products.query()
     ///         .filter {
@@ -347,8 +348,7 @@ extension Query {
     /// )
     /// ```
     ///
-    /// - Parameter content: フィルター条件を構築するクロージャ
-    /// - Returns: フィルターが追加された新しいQueryインスタンス
+    /// - Parameter content: Block producing the filter to apply.
     public func filter(@FilterBuilder _ content: () -> QueryFilter) -> Query<T> {
         let queryFilter = content()
         return self.where(queryFilter)

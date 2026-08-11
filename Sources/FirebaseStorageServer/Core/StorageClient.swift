@@ -4,46 +4,55 @@ import Internal
 import NIOCore
 import NIOHTTP1
 
-/// Cloud Storage REST APIクライアント
+/// A client for the Cloud Storage JSON API, for use from server-side Swift.
 ///
-/// サーバーサイドSwiftからCloud Storageにアクセスするための軽量クライアント。
-/// Firebase SDKを使用せず、REST APIを直接呼び出す。
+/// Calls the Cloud Storage JSON API v1 over HTTP rather than linking the Firebase SDK, so it runs
+/// wherever `AsyncHTTPClient` runs. Every call buffers whole payloads in memory: an upload sends
+/// the `Data` you hand it in a single request, and a download collects at most 100 MB.
 ///
-/// ## 初期化方法
+/// One client addresses one bucket, fixed at initialization. Each request carries a bearer token
+/// that is resolved once and never refreshed — see ``token``.
 ///
-/// ### 自動設定（Cloud Run / ローカル gcloud）
+/// ## Creating a client
+///
+/// ### Resolved automatically (Cloud Run metadata server or local gcloud ADC)
 /// ```swift
 /// let storage = try await StorageClient(.auto, bucket: "my-bucket")
 /// ```
 ///
-/// ### エミュレーター
+/// ### Emulator
 /// ```swift
 /// let storage = StorageClient(.emulator(projectId: "demo-project"), bucket: "my-bucket")
 /// ```
 ///
-/// ### 明示指定
+/// ### Credentials you already hold
 /// ```swift
 /// let storage = StorageClient(.explicit(projectId: "my-project", token: accessToken), bucket: "my-bucket")
 /// ```
 public final class StorageClient: Sendable {
-    /// 設定
     public let configuration: StorageConfiguration
 
-    /// 認証トークン
+    /// The bearer token sent on every request.
+    ///
+    /// Resolved once during initialization and never refreshed, so a client held past the token's
+    /// lifetime starts failing with `StorageError.unauthenticated`; build a new client instead of
+    /// keeping one for the lifetime of the process. Against the emulator this is the literal
+    /// string `"owner"`.
     public let token: String
 
-    /// HTTPクライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
 
     // MARK: - Initialization
 
-    /// 自動設定モードで初期化する（async）。
+    /// Creates a client, resolving credentials asynchronously.
     ///
-    /// Cloud Run または gcloud ADC から認証情報を自動取得する。`.emulator` / `.explicit` の場合も使用可能。
+    /// Required for `.auto`, which fetches an access token from the Cloud Run metadata server or
+    /// from local gcloud application default credentials. `.emulator` and `.explicit` also work
+    /// here and resolve without a network round trip.
     /// - Parameters:
-    ///   - config: GCP 設定
-    ///   - bucket: アクセスするバケット名
-    /// - Throws: 認証情報の解決に失敗した場合
+    ///   - config: How the project ID and access token are obtained.
+    ///   - bucket: The bucket every call on this client addresses.
+    /// - Throws: An error from credential resolution if no token can be obtained.
     public init(_ config: GCPConfiguration, bucket: String) async throws {
         let resolved = try await GCPEnvironment.shared.resolve(config)
 
@@ -62,12 +71,15 @@ public final class StorageClient: Sendable {
         self.httpClientProvider = HTTPClientProvider()
     }
 
-    /// 同期初期化（`.emulator` / `.explicit` 専用）。
+    /// Creates a client from credentials that need no asynchronous lookup.
     ///
-    /// `.auto` を渡すと fatalError になる。非同期認証が不要な場合に使用する。
+    /// `.emulator` uses the literal token `"owner"`, which the Storage emulator accepts in place
+    /// of a real access token.
+    /// - Important: `.auto` and `.autoWithDatabase` trap with `fatalError` here; they need the
+    ///   asynchronous initializer.
     /// - Parameters:
-    ///   - config: GCP 設定（`.emulator` または `.explicit` のみ有効）
-    ///   - bucket: アクセスするバケット名
+    ///   - config: Must be `.emulator` or `.explicit`.
+    ///   - bucket: The bucket every call on this client addresses.
     public init(_ config: GCPConfiguration, bucket: String) {
         switch config {
         case .auto, .autoWithDatabase:
@@ -84,13 +96,23 @@ public final class StorageClient: Sendable {
 
     // MARK: - Public API
 
-    /// ファイルをアップロードし、アップロード結果のメタデータを返す。
+    /// Uploads data as a simple, single-request upload.
+    ///
+    /// Sends `POST {upload endpoint}/b/{bucket}/o?uploadType=media&name={path}`. The whole body
+    /// travels in one request and is held in memory; there is no multipart or resumable path and
+    /// no size threshold that switches to one, so large payloads restart from zero on failure.
+    ///
+    /// `path` is percent-encoded with `.urlPathAllowed`, which keeps `/` literal so it reads as a
+    /// folder separator. That character set also leaves `&` and `+` unescaped, so an object name
+    /// containing either lands in the request differently from what you passed.
     /// - Parameters:
-    ///   - data: アップロードするバイナリデータ
-    ///   - path: バケット内のオブジェクトパス（例: `"images/user123.jpg"`）
-    ///   - contentType: MIME タイプ（例: `"image/jpeg"`）
-    /// - Returns: アップロードされたオブジェクトのメタデータ
-    /// - Throws: `StorageError`（HTTP エラー・JSON パース失敗を含む）
+    ///   - data: The bytes to store as the object's content.
+    ///   - path: The object name inside the bucket, for example `"images/user123.jpg"`.
+    ///   - contentType: The MIME type recorded with the object, for example `"image/jpeg"`.
+    /// - Returns: The object resource the API echoes back, including the assigned generation, size,
+    ///   and MD5 hash.
+    /// - Throws: `StorageError` mapped from the status code for anything other than 200, or
+    ///   `StorageError.invalidArgument` when the response body is not a parseable object resource.
     public func upload(
         data: Data,
         path: String,
@@ -134,10 +156,18 @@ public final class StorageClient: Sendable {
         return storageObject
     }
 
-    /// ファイルをダウンロードし、バイナリデータを返す（最大 100 MB）。
-    /// - Parameter path: バケット内のオブジェクトパス
-    /// - Returns: ダウンロードしたバイナリデータ
-    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
+    /// Downloads an object's bytes in full.
+    ///
+    /// Sends `GET {base}/b/{bucket}/o/{path}?alt=media` and collects the whole response into
+    /// memory. The client is bounded at 100 MB per object — not by any Cloud Storage limit, but by
+    /// this buffer — so there is no streaming or ranged read.
+    ///
+    /// `path` is percent-encoded with `.urlPathAllowed`, which leaves `/` unescaped rather than
+    /// turning it into `%2F`.
+    /// - Parameter path: The object name inside the bucket.
+    /// - Throws: `StorageError.notFound` when no such object exists (the API answers 404); other
+    ///   statuses map by code. A response larger than 100 MB throws the collector's own error
+    ///   rather than a `StorageError`.
     public func download(path: String) async throws -> Data {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)?alt=media"
@@ -163,9 +193,13 @@ public final class StorageClient: Sendable {
         return body.toData()
     }
 
-    /// 指定パスのファイルを削除する。
-    /// - Parameter path: バケット内のオブジェクトパス
-    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
+    /// Deletes the object at the given path.
+    ///
+    /// Sends `DELETE {base}/b/{bucket}/o/{path}`, accepting both 204 and 200 as success. Deletes
+    /// the object's live version only; it does not name a generation.
+    /// - Parameter path: The object name inside the bucket.
+    /// - Throws: `StorageError.notFound` when no such object exists. Deleting a missing object is
+    ///   an error here, not a silent no-op.
     public func delete(path: String) async throws {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
@@ -189,11 +223,15 @@ public final class StorageClient: Sendable {
         }
     }
 
-    /// 複数ファイルを順次削除し、失敗したパスとエラーを返す。
+    /// Deletes several objects and reports the ones that failed.
     ///
-    /// 個々の削除失敗はスローせず、失敗情報をまとめて返す。全件成功した場合は空配列を返す。
-    /// - Parameter paths: 削除するオブジェクトパスの配列
-    /// - Returns: 失敗した `(path, error)` タプルの配列（順不同）
+    /// The deletes run one after another, not concurrently, and a failure never stops the run:
+    /// every path is attempted. Nothing is rolled back, so a partial delete is a normal outcome —
+    /// inspect the result rather than assuming all-or-nothing.
+    /// - Parameter paths: The object names to delete.
+    /// - Returns: One entry per failed path, in the order the paths were given; empty when every
+    ///   delete succeeded. Failures that are not `StorageError` are wrapped as `.unknown` with a
+    ///   status code of `-1`.
     public func deleteMultiple(paths: [String]) async -> [(path: String, error: StorageError)] {
         var failures: [(path: String, error: StorageError)] = []
 
@@ -210,10 +248,15 @@ public final class StorageClient: Sendable {
         return failures
     }
 
-    /// 指定パスのオブジェクトメタデータを取得する。
-    /// - Parameter path: バケット内のオブジェクトパス
-    /// - Returns: オブジェクトのメタデータ（サイズ・コンテンツタイプ・ハッシュ等）
-    /// - Throws: `StorageError`（オブジェクトが存在しない場合は `.notFound`）
+    /// Fetches an object's metadata without transferring its content.
+    ///
+    /// Sends `GET {base}/b/{bucket}/o/{path}` with no `alt=media`, so the API returns the object
+    /// resource — size, content type, MD5 hash, timestamps — instead of the bytes. Use it as an
+    /// existence check when you do not want to pay for the download.
+    /// - Parameter path: The object name inside the bucket.
+    /// - Throws: `StorageError.notFound` when no such object exists. A body that parses as JSON but
+    ///   is not an object resource becomes `.invalidArgument`; a body that is not JSON at all
+    ///   propagates the `JSONSerialization` error rather than a `StorageError`.
     public func getMetadata(path: String) async throws -> StorageObject {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
@@ -246,9 +289,14 @@ public final class StorageClient: Sendable {
         return storageObject
     }
 
-    /// オブジェクトの公開 URL を返す（エミュレーター環境ではローカル URL）。
-    /// - Parameter path: バケット内のオブジェクトパス
-    /// - Returns: 公開アクセス可能な URL
+    /// Builds the unauthenticated URL for an object.
+    ///
+    /// Returns `https://storage.googleapis.com/{bucket}/{path}`, or the emulator host when the
+    /// client is configured for one. This is neither a signed URL nor a Firebase download URL with
+    /// an access token: it carries no credentials and therefore never expires, and it only resolves
+    /// for objects the bucket grants public read on. For anything else, use ``download(path:)`` or
+    /// the object's `mediaLink`, both of which require the `Authorization` header.
+    /// - Parameter path: The object name inside the bucket.
     public func publicURL(for path: String) -> URL {
         configuration.publicURL(for: path)
     }

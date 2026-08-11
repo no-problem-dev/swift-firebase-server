@@ -1,27 +1,21 @@
 # swift-firebase-server
 
-Firebase REST API client for server-side Swift (Firestore & Cloud Storage & Auth)
-
-English | [日本語](./README.ja.md)
+Firestore, Cloud Storage, and Firebase Auth for server-side Swift, spoken directly over the REST APIs — no Firebase Admin SDK.
 
 ![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)
 ![Platforms](https://img.shields.io/badge/Platforms-macOS%2014+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## What You Can Do
-
-- Firestore document CRUD operations
-- Cloud Storage file upload & download
-- Firebase Auth ID token verification
-- Type-safe collection path generation
-- Declarative query building
+English | [日本語](./README.ja.md)
 
 ## Features
 
-- **Swift Macro DSL** - Type-safe schema and model definitions with `@FirestoreSchema`, `@Collection`, `@FirestoreModel`
-- **Auto-generated CodingKeys** - `@FirestoreModel` supports `snakeCase` conversion and `@Field` custom keys
-- **Native REST API** - Direct access from server-side Swift without Firebase Admin SDK
-- **FilterBuilder DSL** - Declarative query syntax with Result Builders
+- **Type-safe schema DSL** — `@FirestoreSchema`, `@Collection`, and `@FirestoreModel` generate the collection paths and model types, so `schema.users.document(id).get()` comes back as a `User` with no cast and no string paths.
+- **CodingKeys you don't write** — `@FirestoreModel` handles `snakeCase` conversion, per-field `@Field` keys, and `@FieldIgnore` for properties that never reach Firestore.
+- **REST-native** — no Admin SDK and no C dependencies, so it builds and runs on Linux. Credentials resolve themselves from the Cloud Run metadata server, a local `gcloud` login, or an emulator.
+- **Declarative queries** — a result-builder `FilterBuilder` for filters, ordering, and pagination.
+- **ID token verification** — Firebase Auth ID tokens verified against Google's public keys, which are fetched once and cached.
+- **Eventarc payloads** — CloudEvents from Firestore triggers and Auth user creation decoded into Swift types.
 
 ## Quick Start
 
@@ -39,27 +33,34 @@ struct User {
 @FirestoreSchema
 struct Schema {
     @Collection("users", model: User.self)
-    enum Users {
-        @Collection("posts", model: Post.self)
-        enum Posts {}
-    }
+    enum Users {}
 }
 
-// Cloud Run / local gcloud auto-detection
+// Picks up Cloud Run, local gcloud, or the emulator on its own.
 let client = try await FirestoreClient(.auto)
 let schema = Schema(client: client)
 
-// Get document (type inference works)
 let user = try await schema.users.document("user123").get()
 
-// Create document
-try await schema.users.document("user123").create(data: newUser)
-
-// Execute query
 let activeUsers = try await schema.users.execute(
     schema.users.query().filter { Field("status") == "active" }
 )
 ```
+
+## Documentation
+
+The full API reference is published from the DocC catalogs:
+
+- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) — Firestore REST client, paths, and queries
+- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) — schema and model macros
+- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) — Cloud Storage client
+- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) — Storage schema macros
+- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) — ID token verification and the Admin API
+- [EventarcServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/eventarcserver/) — CloudEvents payload decoding
+
+Longer-form guides live in [`documentation/`](documentation/README.md), including a
+[Swift macro reference](documentation/references/macros/README.md) for the DSL internals. Those
+guides are written in Japanese.
 
 ## Installation
 
@@ -81,52 +82,17 @@ dependencies: [
 )
 ```
 
-## Documentation
-
-### Usage Guides
-
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](documentation/getting-started.md) | Setup and quick start |
-| [Firestore Document Operations](documentation/firestore/document-operations.md) | CRUD operations |
-| [Firestore Queries](documentation/firestore/queries.md) | Filters, sorting, pagination |
-| [Firestore Schema Definition](documentation/firestore/schema-definition.md) | @FirestoreSchema macro |
-| [Firestore Model Definition](documentation/firestore/model-definition.md) | @FirestoreModel macro |
-| [Storage File Operations](documentation/storage/file-operations.md) | Upload & download |
-| [Storage Schema Definition](documentation/storage/schema-definition.md) | @StorageSchema macro |
-| [Auth Token Verification](documentation/auth/token-verification.md) | ID token verification |
-
-### API Reference (DocC)
-
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) - Firestore REST API client
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) - Type-safe schema DSL
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) - Cloud Storage client
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) - Type-safe Storage schema DSL
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) - ID token verification
-
-### Technical Reference
-
-- [Swift Macro Reference](documentation/references/macros/README.md) - Comprehensive macro reference
-
 ## Requirements
 
-- macOS 14+
+- macOS 14+ (Linux is supported for deployment targets such as Cloud Run)
 - Swift 6.2+
 - Xcode 16+
 
+## Contributing
+
+Bug reports and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for how to
+build, test, and release.
+
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details
-
-## For Developers
-
-- **Release Process**: [Release Process Guide](RELEASE_PROCESS.md)
-
-## Support
-
-- [Issue Reports](https://github.com/no-problem-dev/swift-firebase-server/issues)
-- [Discussions](https://github.com/no-problem-dev/swift-firebase-server/discussions)
-
----
-
-Made with love by [NOPROBLEM](https://github.com/no-problem-dev)
+MIT License — see [LICENSE](LICENSE) for details.

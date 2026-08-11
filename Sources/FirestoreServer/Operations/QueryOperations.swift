@@ -7,14 +7,28 @@ import NIOHTTP1
 // MARK: - Query Operations
 
 extension FirestoreClient {
-    /// クエリを実行してドキュメントを取得
+    /// Runs a query and decodes every matching document.
+    ///
+    /// No match returns an empty array; it is not an error. Every returned document must decode,
+    /// so one document that does not fit the type fails the whole call — narrow the query or
+    /// use `runQueryRaw(_:)` when a collection holds mixed shapes.
     public func runQuery<T: Decodable & Sendable>(_ query: Query<T>) async throws -> [T] {
         let documents = try await runQueryRaw(query)
         let decoder = FirestoreDecoder(keyDecodingStrategy: configuration.keyDecodingStrategy)
         return try documents.map { try decoder.decode(T.self, from: $0) }
     }
 
-    /// クエリを実行してFirestoreDocumentを取得
+    /// Runs a query and returns the matching documents undecoded.
+    ///
+    /// Sends `POST …:runQuery` to the collection's parent, carrying the built `structuredQuery`.
+    /// Firestore answers with a stream of partial results, some of which carry only a read time
+    /// or a skipped count; those are dropped, so a query that matches nothing comes back as an
+    /// empty array. The request names no transaction and no read time, so it reads the database
+    /// as of whenever the server handled it, and two queries in a row can disagree.
+    ///
+    /// - Note: The whole result has to fit in the 10 MiB the client reads from one response, and
+    ///   the results arrive in one piece rather than page by page. Bound large queries with
+    ///   `limit(to:)` and a cursor.
     public func runQueryRaw<T>(_ query: Query<T>) async throws -> [FirestoreDocument] {
         let url = "\(configuration.baseURL)/\(query.collection.restParent):runQuery"
 
@@ -54,7 +68,19 @@ extension FirestoreClient {
         return documents
     }
 
-    /// コレクションに対するクエリを実行
+    /// Builds a query over a collection and runs it in one step.
+    ///
+    /// ```swift
+    /// let recent = try await firestore.query(booksRef, as: Book.self) { query in
+    ///     query.order(by: Book.Fields.updatedAt, direction: .descending).limit(to: 20)
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - collection: The collection to query.
+    ///   - type: The type each matching document is decoded into.
+    ///   - configure: Adds filters, ordering, cursors, and limits to the empty query it is
+    ///     handed. Each builder call returns a new query, so return the result of the chain.
     public func query<T: Decodable & Sendable>(
         _ collection: CollectionReference,
         as type: T.Type,

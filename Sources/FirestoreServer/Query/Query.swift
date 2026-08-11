@@ -12,20 +12,24 @@ public struct FieldPath<Model>: Sendable {
 
 // MARK: - Query Protocol
 
-/// Firestoreクエリを構築するためのプロトコル
+/// A value that can produce a Firestore `structuredQuery`.
 public protocol FirestoreQueryProtocol: Sendable {
     associatedtype ResultType
 
-    /// コレクション参照
     var collection: CollectionReference { get }
 
-    /// REST API用のStructuredQueryを生成
+    /// Builds the `structuredQuery` body for the `runQuery` REST call.
     func buildStructuredQuery() -> [String: Any]
 }
 
 // MARK: - Query
 
-/// Firestoreクエリを構築するビルダー
+/// An immutable builder for a Firestore `structuredQuery`.
+///
+/// Every method returns a new query rather than mutating the receiver, so a query is safe to
+/// keep and branch from. Repeated filters are combined with AND; anything beyond a single
+/// equality clause generally needs a composite index, which Firestore asks for in the error it
+/// returns for the first such query.
 public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Sendable {
     public typealias ResultType = T
 
@@ -66,14 +70,15 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
 
     // MARK: - Builder Methods
 
-    /// フィルター条件を追加
+    /// Adds a filter, keeping any filter the query already carries.
     ///
-    /// 既存のフィルターがある場合はANDで結合する。
-    /// `whereField()` をチェーンしても正しく動作する。
+    /// A filter already present is not replaced: the two are wrapped in an AND
+    /// `compositeFilter`, so chained `where` / `whereField` calls nest one level deeper each
+    /// time and all of them have to match.
     public func `where`(_ filter: some QueryFilterProtocol) -> Query<T> {
         let combinedFilter: QueryFilter
         if let existingFilter = self.filter {
-            // 既存フィルターと新規フィルターをANDで結合
+            // Combine the existing filter with the new one under AND
             combinedFilter = QueryFilter(CompositeFilter(op: .and, filters: [existingFilter, filter]))
         } else {
             combinedFilter = QueryFilter(filter)

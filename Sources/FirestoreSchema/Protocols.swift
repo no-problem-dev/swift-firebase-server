@@ -2,12 +2,13 @@ import FirestoreServer
 
 // MARK: - Schema Protocol
 
-/// Firestoreスキーマのルートプロトコル
+/// The requirements `@FirestoreSchema` fulfills on the struct it is applied to.
+///
+/// Conform manually only when hand-writing a schema; the macro generates all three members,
+/// with `database` forwarded from the client's configuration.
 public protocol FirestoreSchemaProtocol: Sendable {
-    /// データベースパス
     var database: DatabasePath { get }
 
-    /// FirestoreClientへの参照
     var client: FirestoreClient { get }
 
     init(client: FirestoreClient)
@@ -15,10 +16,15 @@ public protocol FirestoreSchemaProtocol: Sendable {
 
 // MARK: - Generic Collection
 
-/// 汎用的な型付きコレクション構造体
+/// A collection whose documents encode and decode as `Model`.
 ///
-/// マクロで生成される静的パス情報と、ランタイムのクライアント情報を組み合わせて
-/// 型安全なコレクション操作を提供する。
+/// It pairs the collection ID the macro extracted from `@Collection` with the client supplied at
+/// runtime, and is what `@FirestoreSchema` generates for collections that have no
+/// sub-collections. Pass `parentPath` to address a sub-collection.
+///
+/// - Important: Read the collection ID from the instance. The static `collectionId` required by
+///   `FirestoreCollectionProtocol` cannot be answered by a generic type and traps if called,
+///   which is why this type overrides `reference` rather than inheriting the protocol default.
 public struct FirestoreCollection<Model: Codable & Sendable>: FirestoreCollectionProtocol, Sendable {
     public typealias Document = FirestoreDocument<Model>
 
@@ -65,7 +71,9 @@ public struct FirestoreCollection<Model: Codable & Sendable>: FirestoreCollectio
 
 // MARK: - Generic Document
 
-/// 汎用的な型付きドキュメント構造体
+/// A handle to one document, whose value encodes and decodes as `Model`.
+///
+/// Holding one performs no request, and the document it names need not exist yet.
 public struct FirestoreDocument<Model: Codable & Sendable>: FirestoreDocumentProtocol, Sendable {
     public let documentId: String
     public let database: DatabasePath
@@ -87,39 +95,43 @@ public struct FirestoreDocument<Model: Codable & Sendable>: FirestoreDocumentPro
 
 // MARK: - Collection Protocol
 
-/// Firestoreコレクションを表すプロトコル
+/// A Firestore collection that knows the type of its documents.
 ///
-/// `Model` 関連型により、型引数なしにコレクション操作ができる。
-/// `document(_:)` メソッドで型付きドキュメントを取得できる。
+/// Because `Model` is an associated type, none of the operations need a type argument: the
+/// document element type of `getAll()` and the result of `document(_:).get()` follow from it.
+/// The extension below supplies `reference` and the read operations, so a conforming type only
+/// has to carry the client, the paths, and `document(_:)`.
 ///
 /// ```swift
 /// let schema = MySchema(client: firestoreClient)
-/// let users = try await schema.users.getAll()  // [User]型が推論される
-/// let user = try await schema.users.document("user123").get()  // User型が推論される
+/// let (users, nextPage) = try await schema.users.getAll()  // users is [User]
+/// let user = try await schema.users.document("user123").get()  // inferred as User
 /// ```
 public protocol FirestoreCollectionProtocol: Sendable {
-    /// コレクションのモデル型
     associatedtype Model: Codable & Sendable
 
-    /// 型付きドキュメント型
     associatedtype Document: FirestoreDocumentProtocol where Document.Model == Model
 
-    /// コレクションID
+    /// The collection ID as written in `@Collection`.
+    ///
+    /// Types generated for a fixed collection return the literal. `FirestoreCollection` cannot
+    /// answer it statically and traps instead, so prefer the instance value where one exists.
     static var collectionId: String { get }
 
-    /// データベースパス
     var database: DatabasePath { get }
 
-    /// FirestoreClientへの参照
     var client: FirestoreClient { get }
 
-    /// 親ドキュメントパス（ルートコレクションの場合はnil）
+    /// The path of the parent document, or `nil` for a root collection.
     var parentPath: String? { get }
 
-    /// コレクション参照を取得
+    /// The reference this collection resolves to: `parentPath/collectionId`, or just
+    /// `collectionId` at the root.
     var reference: CollectionReference { get }
 
-    /// 型付きドキュメントを取得
+    /// Returns a handle for the document with this ID.
+    ///
+    /// No request is made and the document need not exist.
     func document(_ documentId: String) -> Document
 }
 
@@ -135,12 +147,20 @@ extension FirestoreCollectionProtocol {
         }
     }
 
-    /// クエリを開始
+    /// Starts a query over this collection, decoding results as `Model`.
     public func query() -> Query<Model> {
         reference.query(as: Model.self)
     }
 
-    /// 全ドキュメントを取得
+    /// Lists one page of documents in the collection, unfiltered and unordered.
+    ///
+    /// This is Firestore's list endpoint rather than a query: no filter or ordering is applied,
+    /// and sub-collections are not traversed. Feed the returned token back in as `pageToken` to
+    /// walk the rest; it is `nil` once the last page has been read.
+    ///
+    /// - Parameters:
+    ///   - pageSize: How many documents to ask for in this request.
+    ///   - pageToken: The token returned by the previous call, or `nil` for the first page.
     public func getAll(
         pageSize: Int = 100,
         pageToken: String? = nil
@@ -153,7 +173,10 @@ extension FirestoreCollectionProtocol {
         )
     }
 
-    /// クエリを実行して結果を取得
+    /// Runs the query and decodes every matching document.
+    ///
+    /// The whole result set comes back in one response, so a query that matches a large number
+    /// of documents is bounded by the client's response buffer rather than paged.
     public func execute(_ query: Query<Model>) async throws -> [Model] {
         try await client.runQuery(query)
     }
@@ -161,31 +184,28 @@ extension FirestoreCollectionProtocol {
 
 // MARK: - Document Protocol
 
-/// Firestoreドキュメントを表すプロトコル
+/// A Firestore document that knows the type it decodes to.
 ///
-/// `Model` 関連型により、`get()` メソッドで型引数なしにドキュメントを取得できる。
+/// Because `Model` is an associated type, `get()` needs no type argument. The extension below
+/// supplies `reference` and the four single-document operations.
 ///
 /// ```swift
 /// let schema = MySchema(client: firestoreClient)
-/// let user = try await schema.users.document("user123").get()  // User型が推論される
+/// let user = try await schema.users.document("user123").get()  // inferred as User
 /// ```
 public protocol FirestoreDocumentProtocol: Sendable {
-    /// ドキュメントのモデル型
     associatedtype Model: Codable & Sendable
 
-    /// ドキュメントID
     var documentId: String { get }
 
-    /// データベースパス
     var database: DatabasePath { get }
 
-    /// FirestoreClientへの参照
     var client: FirestoreClient { get }
 
-    /// 親コレクションのパス
+    /// The path of the collection this document lives in, without the document ID.
     var collectionPath: String { get }
 
-    /// ドキュメント参照を取得
+    /// The reference this document resolves to: `collectionPath/documentId`.
     var reference: DocumentReference { get }
 }
 
@@ -196,22 +216,36 @@ extension FirestoreDocumentProtocol {
         return DocumentReference(database: database, path: try! DocumentPath(fullPath))
     }
 
-    /// ドキュメントを取得
+    /// Fetches the document and decodes it as `Model`.
+    ///
+    /// A missing document is an error, not an empty result: Firestore answers the GET with 404
+    /// and the call throws `FirestoreError.api(.notFound)`.
     public func get() async throws -> Model {
         try await client.getDocument(reference, as: Model.self)
     }
 
-    /// ドキュメントを作成
+    /// Creates the document at this path.
+    ///
+    /// The write is addressed to the parent collection with an explicit document ID, so it
+    /// fails with `FirestoreError.api(.alreadyExists)` if something is already there. Use
+    /// `update(data:)` when overwriting is the intent.
     public func create(data: Model) async throws {
         try await client.createDocument(reference, data: data)
     }
 
-    /// ドキュメントを更新
+    /// Replaces the document with the encoded value.
+    ///
+    /// The PATCH carries no update mask, so this is a whole-document write rather than a merge:
+    /// fields the stored document has and `data` does not are dropped. No `currentDocument`
+    /// precondition is sent either, so concurrent writers are resolved last-write-wins.
     public func update(data: Model) async throws {
         try await client.updateDocument(reference, data: data)
     }
 
-    /// ドキュメントを削除
+    /// Deletes the document.
+    ///
+    /// No `currentDocument` precondition is sent, so the call does not assert that the document
+    /// exists first.
     public func delete() async throws {
         try await client.deleteDocument(reference)
     }

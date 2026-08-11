@@ -1,12 +1,16 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@StorageSchema`マクロの実装
+/// The implementation of `@StorageSchema`.
 ///
-/// このマクロは以下を生成:
-/// - `client: StorageClient`プロパティ
-/// - `init(client: StorageClient)`イニシャライザ
-/// - ネストされた`@Folder`構造体へのアクセサプロパティ
+/// Adds to the annotated struct:
+/// - a `client: StorageClient` property
+/// - `init(client: StorageClient)`
+/// - one accessor property per nested struct marked `@Folder`, named after the struct with a
+///   lowercased first letter and built with a `nil` parent path so the folder sits at the bucket root
+/// - conformance to `StorageSchemaProtocol` and `Sendable`
+///
+/// Rejects anything that is not a struct with `StorageMacroError.requiresStruct`.
 public struct StorageSchemaMacro {}
 
 // MARK: - MemberMacro
@@ -24,23 +28,23 @@ extension StorageSchemaMacro: MemberMacro {
 
         var members: [DeclSyntax] = []
 
-        // client プロパティ
+        // client property
         members.append("""
             public let client: StorageClient
             """)
 
-        // イニシャライザ
+        // Initializer
         members.append("""
             public init(client: StorageClient) {
                 self.client = client
             }
             """)
 
-        // @Folder 属性を持つネストされた構造体を検索してアクセサを生成
+        // Generate an accessor for every nested struct marked @Folder.
         for member in structDecl.memberBlock.members {
             guard let nestedStruct = member.decl.as(StructDeclSyntax.self) else { continue }
 
-            // @Folder属性を検索
+            // Look for the @Folder attribute.
             for attribute in nestedStruct.attributes {
                 guard let attr = attribute.as(AttributeSyntax.self),
                       let identifier = attr.attributeName.as(IdentifierTypeSyntax.self),
@@ -50,7 +54,7 @@ extension StorageSchemaMacro: MemberMacro {
                 let structName = nestedStruct.name.text
                 let accessorName = structName.lowercasedFirst()
 
-                // フォルダアクセサを生成
+                // Root-level folder: no parent path.
                 members.append("""
                     public var \(raw: accessorName): \(raw: structName) {
                         \(raw: structName)(client: client, parentPath: nil)
@@ -72,7 +76,7 @@ extension StorageSchemaMacro: MemberAttributeMacro {
         providingAttributesFor member: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AttributeSyntax] {
-        // ネストされた構造体に対しては何もしない（@Folderは手動で付ける）
+        // Nothing is added to nested members; @Folder is written by hand.
         []
     }
 }

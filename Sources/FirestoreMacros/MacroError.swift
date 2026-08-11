@@ -1,6 +1,10 @@
 import Foundation
 
-/// マクロ展開時のエラー
+/// A failure raised during macro expansion, surfaced to the compiler as its `description`.
+///
+/// Only `requiresStruct`, `invalidArgument`, and `message` are reachable: the schema macros word
+/// their own diagnostics through `message`, so `requiresEnum` and `missingCollectionId` are
+/// never thrown and their wording never reaches a user.
 enum MacroError: Error, CustomStringConvertible {
     case requiresStruct
     case requiresEnum

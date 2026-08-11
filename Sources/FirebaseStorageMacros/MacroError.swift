@@ -1,6 +1,8 @@
 import Foundation
 
-/// マクロ展開時のエラー
+/// A failure raised while expanding `@StorageSchema`, `@Folder`, or `@Object`.
+///
+/// Throwing one of these turns into a compile-time diagnostic carrying its ``description``.
 enum StorageMacroError: Error, CustomStringConvertible {
     case requiresStruct
     case missingFolderName

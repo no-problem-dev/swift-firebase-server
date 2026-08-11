@@ -1,35 +1,37 @@
 import Foundation
 import Internal
 
-/// Firestoreクライアントの設定
+/// Which Firestore database a client talks to, over which endpoint, and how it names fields.
 public struct FirestoreConfiguration: ServiceConfiguration, EmulatorConfigurable, Sendable {
-    /// データベースパス
     public let database: DatabasePath
 
-    /// Google Cloud プロジェクトID
     public var projectId: String {
         database.projectId
     }
 
-    /// ベースURL（本番 or エミュレーター）
+    /// The API root every request is built on.
+    ///
+    /// `https://firestore.googleapis.com/v1` in production, or `http://host:port/v1` — plain
+    /// HTTP, no TLS — when the configuration was made with `emulator(projectId:)`.
     public let baseURL: URL
 
-    /// リクエストタイムアウト（秒）
+    /// Applied to each individual REST request, in seconds.
     public let timeout: TimeInterval
 
-    /// キーのエンコーディング戦略（Swiftプロパティ名 → Firestoreフィールド名）
+    /// How Swift property names are turned into Firestore field names when writing.
     public let keyEncodingStrategy: KeyEncodingStrategy
 
-    /// キーのデコーディング戦略（Firestoreフィールド名 → Swiftプロパティ名）
+    /// How Firestore field names are turned back into Swift property names when reading.
     public let keyDecodingStrategy: KeyDecodingStrategy
 
-    /// 本番環境用の初期化
+    /// Creates a configuration pointing at the production Firestore endpoint.
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - databaseId: データベースID（デフォルト: "(default)"）
-    ///   - timeout: タイムアウト秒数（デフォルト: 30秒）
-    ///   - keyEncodingStrategy: キーのエンコーディング戦略（デフォルト: .useDefaultKeys）
-    ///   - keyDecodingStrategy: キーのデコーディング戦略（デフォルト: .useDefaultKeys）
+    ///   - projectId: The Google Cloud project ID.
+    ///   - databaseId: The Firestore database ID; leave it at `"(default)"` unless the project
+    ///     uses a named database.
+    ///   - timeout: The per-request timeout in seconds.
+    ///   - keyEncodingStrategy: How Swift property names are turned into Firestore field names.
+    ///   - keyDecodingStrategy: How Firestore field names are turned back into property names.
     public init(
         projectId: String,
         databaseId: String = "(default)",
@@ -44,15 +46,19 @@ public struct FirestoreConfiguration: ServiceConfiguration, EmulatorConfigurable
         self.keyDecodingStrategy = keyDecodingStrategy
     }
 
-    /// エミュレーター用の初期化
+    /// Creates a configuration pointing at a local Firebase Emulator instead of Google's servers.
+    ///
+    /// Only the host changes; the paths and request bodies are the same as production. Security
+    /// rules and IAM are not enforced by the emulator, so any bearer token is accepted.
+    ///
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - databaseId: データベースID（デフォルト: "(default)"）
-    ///   - host: エミュレーターホスト（デフォルト: "localhost"）
-    ///   - port: エミュレーターポート（デフォルト: 8080）
-    ///   - timeout: タイムアウト秒数（デフォルト: 30秒）
-    ///   - keyEncodingStrategy: キーのエンコーディング戦略（デフォルト: .useDefaultKeys）
-    ///   - keyDecodingStrategy: キーのデコーディング戦略（デフォルト: .useDefaultKeys）
+    ///   - projectId: The project ID the emulator was started with. Any value works.
+    ///   - databaseId: The Firestore database ID.
+    ///   - host: The host the emulator listens on.
+    ///   - port: The port the emulator listens on.
+    ///   - timeout: The per-request timeout in seconds.
+    ///   - keyEncodingStrategy: How Swift property names are turned into Firestore field names.
+    ///   - keyDecodingStrategy: How Firestore field names are turned back into property names.
     public static func emulator(
         projectId: String,
         databaseId: String = "(default)",
@@ -72,7 +78,7 @@ public struct FirestoreConfiguration: ServiceConfiguration, EmulatorConfigurable
         )
     }
 
-    /// EmulatorConfigurable準拠
+    /// Creates an emulator configuration for the default database with the default key strategies.
     public static func emulator(
         projectId: String,
         host: String,
@@ -90,7 +96,7 @@ public struct FirestoreConfiguration: ServiceConfiguration, EmulatorConfigurable
         )
     }
 
-    /// 内部初期化（カスタムURL用）
+    /// Creates a configuration with an explicit base URL.
     internal init(
         database: DatabasePath,
         baseURL: URL,

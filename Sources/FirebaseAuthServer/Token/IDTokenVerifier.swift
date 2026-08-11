@@ -2,45 +2,59 @@ import Foundation
 import Crypto
 import _CryptoExtras
 
-/// Firebase ID トークン検証プロトコル
+/// Verifies Firebase ID tokens issued by Firebase Authentication.
+///
+/// The production implementation is ``IDTokenVerifier``. Conform a test double to this protocol to
+/// inject verification results without reaching Google's public key endpoint.
 public protocol IDTokenVerifying: Sendable {
-    /// ID トークンを検証し、検証済みトークンを返す
-    /// - Parameter idToken: Firebase ID トークン文字列
-    /// - Returns: 検証済みトークン
-    /// - Throws: `AuthError` 検証に失敗した場合
+    /// Checks a token's signature and claims and returns the identity it carries.
+    /// - Parameter idToken: The raw JWT sent by a Firebase client, without any `Bearer ` prefix.
+    /// - Throws: ``AuthError`` if the token is malformed, expired, issued for another project, or
+    ///   signed by a key Google does not publish.
     func verify(_ idToken: String) async throws -> VerifiedToken
 }
 
-/// Firebase ID トークン検証器
+/// Verifies Firebase ID tokens against Google's published signing keys.
 ///
-/// Firebase ID トークン（JWT）を検証し、ユーザー情報を抽出する。
-/// 以下の検証を実行:
-/// 1. JWT 形式の検証
-/// 2. アルゴリズムの検証（RS256）
-/// 3. 署名の検証（Google 公開鍵使用）
-/// 4. クレームの検証（exp, iat, aud, iss, sub, auth_time）
+/// A production verification runs these steps in order and throws ``AuthError`` on the first failure:
+///
+/// 1. The token splits into exactly three dot-separated Base64URL parts.
+/// 2. The header's `alg` is exactly `RS256`.
+/// 3. The claims: `exp` is not past, `iat` and `auth_time` are not in the future, `aud` equals the
+///    project ID, `iss` equals `https://securetoken.google.com/{projectId}`, and `sub` is non-empty.
+///    Every time comparison allows `clockSkewTolerance` of slack in the relevant direction.
+/// 4. The RS256 signature, against the Google certificate named by the header's `kid`.
+///
+/// Claims are checked before the signature, so a claim failure says nothing about whether the token
+/// was genuine.
+///
+/// Nothing beyond that list is checked. Revocation and account-disabled state are not checked (that
+/// needs an Admin API lookup), the `typ` header and any custom claims are ignored, `nbf` is ignored,
+/// and the certificate that carries the public key is used only as a container for that key — its
+/// validity dates, extensions, and issuer signature are never verified.
+///
+/// - Warning: When ``AuthConfiguration/useEmulator`` is set, every check above is skipped except that
+///   `sub` is non-empty. Never give a production deployment an emulator configuration.
 public final class IDTokenVerifier: IDTokenVerifying, Sendable {
-    /// 設定
     private let configuration: AuthConfiguration
 
-    /// 公開鍵キャッシュ
     private let publicKeyCache: PublicKeyCache
 
-    /// JWT デコーダー
     private let jwtDecoder: JWTDecoder
 
-    /// 時刻許容範囲（秒）
+    /// How far the `exp`, `iat`, and `auth_time` claims may disagree with this machine's clock, in seconds.
     ///
-    /// クロック同期のずれを考慮した許容範囲
+    /// A token stays acceptable for this long after `exp`, and `iat` or `auth_time` may sit this far
+    /// in the future without being rejected.
     private let clockSkewTolerance: TimeInterval
 
     // MARK: - Initializers
 
-    /// 初期化
+    /// Creates a verifier bound to a single Firebase project.
     /// - Parameters:
-    ///   - configuration: Auth 設定
-    ///   - publicKeyCache: 公開鍵キャッシュ
-    ///   - clockSkewTolerance: 時刻許容範囲（デフォルト: 5分）
+    ///   - configuration: Supplies the expected issuer and audience, and whether to bypass verification for the emulator.
+    ///   - publicKeyCache: Supplies Google's signing certificates, looked up by key ID.
+    ///   - clockSkewTolerance: How far clocks may disagree, in seconds. Defaults to five minutes.
     public init(
         configuration: AuthConfiguration,
         publicKeyCache: PublicKeyCache,
@@ -55,51 +69,51 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
     // MARK: - IDTokenVerifying
 
     public func verify(_ idToken: String) async throws -> VerifiedToken {
-        // エミュレーターモードの場合は署名検証をスキップ
+        // In emulator mode, skip the signature check and every claim check
         if configuration.useEmulator {
             return try verifyEmulatorToken(idToken)
         }
 
-        // 1. JWT をデコード
+        // 1. Decode the JWT
         let decoded = try jwtDecoder.decode(idToken)
 
-        // 2. アルゴリズムを検証
+        // 2. Check the algorithm
         guard decoded.header.alg == "RS256" else {
             throw AuthError.unsupportedAlgorithm(decoded.header.alg)
         }
 
-        // 3. クレームを検証
+        // 3. Check the claims
         try validateClaims(decoded.payload)
 
-        // 4. 署名を検証
+        // 4. Check the signature
         try await verifySignature(decoded)
 
-        // 5. VerifiedToken を返す
+        // 5. Hand back the verified token
         return VerifiedToken(payload: decoded.payload)
     }
 
     // MARK: - Private Methods
 
-    /// クレームを検証
+    /// Checks the time, audience, issuer, and subject claims of a decoded but still unverified token.
     private func validateClaims(_ payload: JWTPayload) throws {
         let now = Date()
 
-        // exp: 有効期限が未来であること
+        // exp: must not be more than `clockSkewTolerance` in the past
         if payload.expiresAt.addingTimeInterval(clockSkewTolerance) < now {
             throw AuthError.tokenExpired(expiredAt: payload.expiresAt)
         }
 
-        // iat: 発行時刻が過去であること
+        // iat: must not be more than `clockSkewTolerance` in the future
         if payload.issuedAt.addingTimeInterval(-clockSkewTolerance) > now {
             throw AuthError.tokenInvalid(reason: "Token issued in the future")
         }
 
-        // auth_time: 認証時刻が過去であること
+        // auth_time: must not be more than `clockSkewTolerance` in the future
         if payload.authTime.addingTimeInterval(-clockSkewTolerance) > now {
             throw AuthError.tokenInvalid(reason: "Auth time is in the future")
         }
 
-        // aud: プロジェクトID と一致
+        // aud: must equal the project ID
         guard payload.aud == configuration.expectedAudience else {
             throw AuthError.invalidAudience(
                 expected: configuration.expectedAudience,
@@ -107,7 +121,7 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
             )
         }
 
-        // iss: 発行者が正しいこと
+        // iss: must equal https://securetoken.google.com/{projectId}
         guard payload.iss == configuration.expectedIssuer else {
             throw AuthError.invalidIssuer(
                 expected: configuration.expectedIssuer,
@@ -115,26 +129,28 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
             )
         }
 
-        // sub: 非空文字列であること
+        // sub: must be a non-empty string
         guard !payload.sub.isEmpty else {
             throw AuthError.userNotFound
         }
     }
 
-    /// RS256 署名を検証
+    /// Checks the RS256 signature against the Google certificate named by the header's `kid`.
+    ///
+    /// A cache miss on the key ID costs a network round trip to Google.
     private func verifySignature(_ decoded: DecodedJWT) async throws {
-        // kid が必須（本番モードでのみ呼ばれる）
+        // `kid` is required here; this path only runs outside emulator mode
         guard let kid = decoded.header.kid else {
             throw AuthError.tokenInvalid(reason: "Missing 'kid' in JWT header")
         }
 
-        // 公開鍵を取得
+        // Fetch the public key
         let pemCertificate = try await publicKeyCache.getPublicKey(for: kid)
 
-        // PEM から公開鍵を抽出
+        // Pull the public key out of the PEM
         let publicKey = try extractPublicKey(from: pemCertificate)
 
-        // 署名を検証
+        // Check the signature
         let isValid = try verifyRS256Signature(
             signedData: decoded.signedData,
             signature: decoded.signature,
@@ -146,9 +162,12 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         }
     }
 
-    /// PEM 形式の X.509 証明書から公開鍵を抽出
+    /// Pulls the RSA public key out of a PEM-encoded X.509 certificate.
+    ///
+    /// Only the key is taken. The certificate's validity dates, extensions, and issuer signature are
+    /// never looked at, so this is not a certificate validation.
     private func extractPublicKey(from pemCertificate: String) throws -> _RSA.Signing.PublicKey {
-        // PEM ヘッダー/フッターを除去して Base64 デコード
+        // Strip the PEM header and footer, then Base64-decode the body
         let pemContent = pemCertificate
             .replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
             .replacingOccurrences(of: "-----END CERTIFICATE-----", with: "")
@@ -159,8 +178,8 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
             throw AuthError.invalidPublicKey(reason: "Failed to decode Base64 certificate")
         }
 
-        // DER 形式の X.509 証明書から公開鍵を抽出
-        // X.509 証明書の構造を解析して SubjectPublicKeyInfo を取得
+        // Take the public key out of the DER-encoded X.509 certificate:
+        // walk the certificate structure down to its SubjectPublicKeyInfo
         let publicKeyData = try extractSubjectPublicKeyInfo(from: derData)
 
         do {
@@ -170,11 +189,12 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         }
     }
 
-    /// X.509 証明書から SubjectPublicKeyInfo を抽出
+    /// Walks the ASN.1 DER of an X.509 certificate and returns its `SubjectPublicKeyInfo`.
     ///
-    /// ASN.1 DER 形式の X.509 証明書を解析し、公開鍵部分を取得
+    /// The returned bytes keep the outer `SEQUENCE` tag and length, which is the DER representation
+    /// the RSA public key initializer expects.
     private func extractSubjectPublicKeyInfo(from derData: Data) throws -> Data {
-        // X.509 証明書の ASN.1 構造:
+        // ASN.1 structure of an X.509 certificate:
         // Certificate ::= SEQUENCE {
         //   tbsCertificate TBSCertificate,
         //   signatureAlgorithm AlgorithmIdentifier,
@@ -188,7 +208,7 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         //   issuer Name,
         //   validity Validity,
         //   subject Name,
-        //   subjectPublicKeyInfo SubjectPublicKeyInfo,  ← これを取得
+        //   subjectPublicKeyInfo SubjectPublicKeyInfo,  <- the part we want
         //   ...
         // }
 
@@ -231,7 +251,7 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         // subject Name (skip)
         try skipElement(bytes: bytes, index: &index)
 
-        // subjectPublicKeyInfo SubjectPublicKeyInfo - これを取得
+        // subjectPublicKeyInfo SubjectPublicKeyInfo - the part we want
         let spkiStart = index
         guard bytes[index] == 0x30 else {
             throw AuthError.invalidPublicKey(reason: "Invalid SubjectPublicKeyInfo: expected SEQUENCE")
@@ -240,11 +260,14 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         let spkiContentLength = try readLength(bytes: bytes, index: &index)
         let spkiEnd = index + spkiContentLength
 
-        // SubjectPublicKeyInfo 全体を返す（SEQUENCE タグとレングスを含む）
+        // Return the whole SubjectPublicKeyInfo, including its SEQUENCE tag and length
         return Data(bytes[spkiStart..<spkiEnd])
     }
 
-    /// ASN.1 長さを読み取る
+    /// Reads the ASN.1 length at `index` and advances `index` past the length bytes.
+    ///
+    /// Handles both the short and the long definite form. The indefinite form is not supported, and
+    /// neither is a length that runs past the end of the data.
     private func readLength(bytes: [UInt8], index: inout Int) throws -> Int {
         guard index < bytes.count else {
             throw AuthError.invalidPublicKey(reason: "Unexpected end of data")
@@ -254,10 +277,10 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         index += 1
 
         if firstByte & 0x80 == 0 {
-            // 短形式: 1バイトで長さを表現
+            // Short form: the single byte is the length
             return Int(firstByte)
         } else {
-            // 長形式: 最初のバイトが長さバイト数を示す
+            // Long form: the first byte says how many bytes carry the length
             let lengthBytes = Int(firstByte & 0x7F)
             guard index + lengthBytes <= bytes.count else {
                 throw AuthError.invalidPublicKey(reason: "Invalid length encoding")
@@ -272,18 +295,22 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         }
     }
 
-    /// ASN.1 要素をスキップ
+    /// Advances `index` past one complete ASN.1 element: its tag, its length, and its contents.
     private func skipElement(bytes: [UInt8], index: inout Int) throws {
         guard index < bytes.count else {
             throw AuthError.invalidPublicKey(reason: "Unexpected end of data")
         }
 
-        index += 1 // タグをスキップ
+        index += 1 // skip the tag
         let length = try readLength(bytes: bytes, index: &index)
         index += length
     }
 
-    /// RS256 署名を検証
+    /// Checks an RSASSA-PKCS1-v1_5 signature over the SHA-256 digest of `signedData`.
+    ///
+    /// That pairing is what `RS256` names in a JWT header. The padding is spelled `insecurePKCS1v1_5`
+    /// because PSS is preferred for new designs, but PKCS#1 v1.5 is the padding JWT `RS256` requires
+    /// and the only one Firebase issues.
     private func verifyRS256Signature(
         signedData: Data,
         signature: Data,
@@ -298,13 +325,15 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         )
     }
 
-    /// エミュレーターモードでのトークン検証
+    /// Decodes a token without verifying it, for use against the Firebase Auth emulator.
     ///
-    /// 署名検証をスキップし、クレームの基本検証のみ実行
+    /// Emulator tokens carry no signature, so nothing here is evidence of anything: the only check is
+    /// that `sub` is non-empty. `exp`, `iat`, `auth_time`, `aud`, and `iss` are not looked at, so an
+    /// expired token minted for another project is accepted.
     private func verifyEmulatorToken(_ idToken: String) throws -> VerifiedToken {
         let decoded = try jwtDecoder.decode(idToken)
 
-        // sub が存在することのみ検証
+        // The only check: `sub` is present
         guard !decoded.payload.sub.isEmpty else {
             throw AuthError.userNotFound
         }

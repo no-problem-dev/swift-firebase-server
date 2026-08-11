@@ -1,8 +1,8 @@
 import Foundation
 
-/// Firestore REST APIで使用される値型
+/// One field value in the Firestore REST wire format.
 ///
-/// Firestore REST APIは独自のJSON形式を使用する:
+/// The REST API tags every value with its type, as a JSON object holding exactly one key:
 /// ```json
 /// {
 ///   "stringValue": "hello",
@@ -11,46 +11,55 @@ import Foundation
 /// }
 /// ```
 ///
-/// 参考: https://cloud.google.com/firestore/docs/reference/rest/v1/Value
+/// See https://cloud.google.com/firestore/docs/reference/rest/v1/Value
 public enum FirestoreValue: Sendable, Hashable {
-    /// null値
+    /// An explicit null, written as `nullValue`.
     case null
 
-    /// ブール値
+    /// A `booleanValue`.
     case boolean(Bool)
 
-    /// 整数値（64ビット）
+    /// A 64-bit signed `integerValue`, which travels as a JSON string, not a number.
     case integer(Int64)
 
-    /// 浮動小数点値
+    /// A `doubleValue`.
     case double(Double)
 
-    /// タイムスタンプ（RFC3339形式）
+    /// A `timestampValue` in RFC 3339 form.
+    ///
+    /// Encoding writes milliseconds, so the microsecond precision Firestore stores does not
+    /// survive a round trip through this type.
     case timestamp(Date)
 
-    /// 文字列（最大1MiB - 89バイト）
+    /// A `stringValue`, which Firestore caps at 1 MiB − 89 bytes.
     case string(String)
 
-    /// バイト列（Base64エンコード、最大1MiB - 89バイト）
+    /// A `bytesValue`, base64 encoded on the wire and capped at 1 MiB − 89 bytes.
     case bytes(Data)
 
-    /// ドキュメント参照
+    /// A `referenceValue`, holding a document's full resource name.
+    ///
+    /// The path is the complete name — `projects/p/databases/(default)/documents/users/abc` —
+    /// not a relative one.
     case reference(String)
 
-    /// 地理座標
+    /// A `geoPointValue`, in degrees.
     case geoPoint(latitude: Double, longitude: Double)
 
-    /// 配列（配列のネストは不可）
+    /// An `arrayValue`.
+    ///
+    /// Firestore refuses an array placed directly inside another array. Nothing here checks
+    /// for it, so such a value encodes happily and the write fails server-side.
     case array([FirestoreValue])
 
-    /// マップ（オブジェクト）
+    /// A `mapValue`, whose nesting Firestore limits to 20 levels of fields.
     case map([String: FirestoreValue])
 }
 
 // MARK: - JSON Encoding
 
 extension FirestoreValue {
-    /// REST API用のJSON辞書に変換
+    /// Renders the value as its tagged REST JSON object.
     public func toJSON() -> [String: Any] {
         switch self {
         case .null:
@@ -60,7 +69,7 @@ extension FirestoreValue {
             return ["booleanValue": value]
 
         case .integer(let value):
-            // Firestore REST APIは整数を文字列として扱う
+            // The Firestore REST API carries integers as strings
             return ["integerValue": String(value)]
 
         case .double(let value):
@@ -99,7 +108,15 @@ extension FirestoreValue {
 // MARK: - JSON Decoding
 
 extension FirestoreValue {
-    /// REST APIのJSONレスポンスからパース
+    /// Reads one tagged value out of a REST response.
+    ///
+    /// The type keys are tried in a fixed order, and `integerValue` is accepted both as the
+    /// string the API documents and as a bare JSON number. An `arrayValue` or `mapValue` with
+    /// no payload decodes as empty rather than failing.
+    ///
+    /// - Throws: `FirestoreValueError.unknownValueType` when no type key is recognised, and
+    ///   the matching `invalidIntegerValue` / `invalidTimestamp` / `invalidBase64` when a key
+    ///   is present but its payload cannot be parsed.
     public static func fromJSON(_ json: [String: Any]) throws -> FirestoreValue {
         if json["nullValue"] != nil {
             return .null
@@ -116,7 +133,7 @@ extension FirestoreValue {
             return .integer(intValue)
         }
 
-        // integerValueが数値として来る場合もある
+        // integerValue sometimes arrives as a number
         if let value = json["integerValue"] as? Int64 {
             return .integer(value)
         }
@@ -132,7 +149,7 @@ extension FirestoreValue {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             guard let date = formatter.date(from: value) else {
-                // フラクショナル秒なしで再試行
+                // Retry without fractional seconds
                 formatter.formatOptions = [.withInternetDateTime]
                 guard let date = formatter.date(from: value) else {
                     throw FirestoreValueError.invalidTimestamp(value)
@@ -169,7 +186,7 @@ extension FirestoreValue {
             return .array(parsed)
         }
 
-        // 空の配列
+        // Empty array
         if let arrayValue = json["arrayValue"] as? [String: Any],
            arrayValue["values"] == nil {
             return .array([])
@@ -184,7 +201,7 @@ extension FirestoreValue {
             return .map(parsed)
         }
 
-        // 空のマップ
+        // Empty map
         if let mapValue = json["mapValue"] as? [String: Any],
            mapValue["fields"] == nil {
             return .map([:])
@@ -196,7 +213,7 @@ extension FirestoreValue {
 
 // MARK: - Error
 
-/// FirestoreValue変換エラー
+/// A REST value that could not be read.
 public enum FirestoreValueError: Error, Sendable {
     case invalidIntegerValue(String)
     case invalidTimestamp(String)
@@ -221,9 +238,11 @@ extension FirestoreValueError: CustomStringConvertible {
 
 // MARK: - FirestoreValueConvertible
 
-/// SwiftネイティブタイプからFirestoreValueへの変換プロトコル
+/// A Swift type that can stand in for a Firestore value.
 ///
-/// FilterBuilder DSL で Swift 標準型をフィルター値として直接使用できるようにする。
+/// This is what lets the filter DSL take ordinary Swift literals on the right-hand side of a
+/// comparison. References and geo points have no conforming Swift type, so pass those as
+/// `FirestoreValue` directly.
 ///
 /// ```swift
 /// query.filter {
@@ -232,7 +251,6 @@ extension FirestoreValueError: CustomStringConvertible {
 /// }
 /// ```
 public protocol FirestoreValueConvertible: Sendable {
-    /// FirestoreValueに変換
     func toFirestoreValue() -> FirestoreValue
 }
 

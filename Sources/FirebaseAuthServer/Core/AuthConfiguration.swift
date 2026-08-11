@@ -1,37 +1,46 @@
 import Foundation
 import Internal
 
-/// Firebase Auth クライアントの設定
+/// Settings that tell an ``AuthClient`` which project a token must belong to.
+///
+/// The project ID drives both values a token is matched against: the expected audience and the
+/// expected issuer. Everything else here is transport detail, plus the emulator switch.
 public struct AuthConfiguration: Sendable {
-    /// Google Cloud プロジェクトID
+    /// The Google Cloud project ID, which is also the audience every accepted token must carry.
     public let projectId: String
 
-    /// リクエストタイムアウト（秒）
+    /// How long to wait for the fetch of Google's public keys, in seconds.
     public let timeout: TimeInterval
 
-    /// エミュレーターモードかどうか
+    /// Whether token verification is bypassed for the Firebase Auth emulator.
+    ///
+    /// - Warning: When this is `true` the verifier accepts unsigned tokens and checks nothing but a
+    ///   non-empty `sub`: expiry, audience, and issuer are all ignored.
     public let useEmulator: Bool
 
-    /// エミュレーターホスト（useEmulator が true の場合のみ使用）
+    /// The emulator host, when ``useEmulator`` is set.
+    ///
+    /// Verification never contacts the emulator — an emulator token is decoded locally — so this is
+    /// carried for callers that need to build their own emulator URLs.
     public let emulatorHost: String?
 
-    /// エミュレーターポート
+    /// The emulator port, when ``useEmulator`` is set. Like ``emulatorHost``, it is informational.
     public let emulatorPort: Int?
 
-    /// Firebase Auth エミュレーターのデフォルトポート
+    /// The port the Firebase Auth emulator listens on by default.
     public static let defaultEmulatorPort = 9099
 
-    /// Google 公開鍵エンドポイント
+    /// Google's endpoint for the Firebase ID token signing certificates, keyed by key ID.
     public static let publicKeysURL = URL(
         string: "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
     )!
 
     // MARK: - Initializers
 
-    /// 本番環境用の初期化
+    /// Creates a production configuration, which verifies signatures and claims in full.
     /// - Parameters:
-    ///   - projectId: Google Cloud プロジェクトID
-    ///   - timeout: タイムアウト秒数（デフォルト: 30秒）
+    ///   - projectId: The Google Cloud project ID.
+    ///   - timeout: Seconds to allow for the public key fetch. Defaults to 30.
     public init(
         projectId: String,
         timeout: TimeInterval = 30
@@ -43,12 +52,16 @@ public struct AuthConfiguration: Sendable {
         self.emulatorPort = nil
     }
 
-    /// エミュレーター用の設定を作成
+    /// Creates a configuration that skips verification, for use against the Firebase Auth emulator.
+    ///
     /// - Parameters:
-    ///   - projectId: Google Cloud プロジェクトID
-    ///   - host: エミュレーターホスト（デフォルト: "localhost"）
-    ///   - port: エミュレーターポート（デフォルト: 9099）
-    ///   - timeout: タイムアウト秒数（デフォルト: 30秒）
+    ///   - projectId: The Google Cloud project ID.
+    ///   - host: The emulator host. Defaults to `localhost`.
+    ///   - port: The emulator port. Defaults to 9099.
+    ///   - timeout: Seconds to allow for a request. Defaults to 30.
+    ///
+    /// - Warning: A client built from this accepts any well-formed token that carries a `sub`, with no
+    ///   signature, expiry, audience, or issuer check. Keep it out of anything a real client can reach.
     public static func emulator(
         projectId: String,
         host: String = EmulatorConfig.defaultHost,
@@ -64,7 +77,6 @@ public struct AuthConfiguration: Sendable {
         )
     }
 
-    /// 内部初期化
     private init(
         projectId: String,
         timeout: TimeInterval,
@@ -81,13 +93,14 @@ public struct AuthConfiguration: Sendable {
 
     // MARK: - Computed Properties
 
-    /// 期待される issuer URL
-    /// `https://securetoken.google.com/{projectId}`
+    /// The issuer a token's `iss` claim must match exactly.
+    ///
+    /// Firebase issues tokens as `https://securetoken.google.com/{projectId}`.
     public var expectedIssuer: String {
         "https://securetoken.google.com/\(projectId)"
     }
 
-    /// 期待される audience（= projectId）
+    /// The audience a token's `aud` claim must match exactly, which for Firebase is the project ID.
     public var expectedAudience: String {
         projectId
     }

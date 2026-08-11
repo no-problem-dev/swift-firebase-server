@@ -1,13 +1,17 @@
 import Foundation
 
-/// Firebase Auth ユーザー作成イベントペイロード
+/// The JSON payload of a Firebase Auth user-creation event.
 ///
-/// Eventarc トリガー: `google.firebase.auth.user.v1.created`
+/// Eventarc trigger: `google.firebase.auth.user.v1.created`.
 ///
-/// Firebase Auth で新規ユーザーが作成された際に送信されるイベント。
-/// ユーザー情報（UID、メール、表示名など）を含む。
+/// Describes the account that was just created. Only `uid` is guaranteed; every other field is
+/// absent for sign-in methods that do not supply it.
 ///
-/// ## 使用例
+/// - Note: Firebase Auth is not a direct Eventarc provider. Sign-ups routed through Cloud Audit
+///   Logs arrive as `CloudAuditLogEvent` instead, and the memberwise initializer exists so you
+///   can build this shape from one.
+///
+/// ## Example
 /// ```swift
 /// server.webhook("webhooks", "auth", "user-created", body: AuthUserCreatedEvent.self) { request in
 ///     let event = request.body
@@ -16,39 +20,44 @@ import Foundation
 /// }
 /// ```
 public struct AuthUserCreatedEvent: Codable, Sendable {
-    /// Firebase ユーザーID
+    /// The Firebase Authentication user ID, which Identity Platform payloads call `localId`.
     public let uid: String
 
-    /// メールアドレス
+    /// The account's email address, or `nil` for sign-in methods that carry none, such as
+    /// anonymous or phone sign-in.
     public let email: String?
 
-    /// メール確認済みフラグ
+    /// Whether the email address has been verified.
+    ///
+    /// `nil` means the payload omitted the flag, which is not the same as `false`.
     public let emailVerified: Bool?
 
-    /// 表示名
     public let displayName: String?
 
-    /// プロフィール写真URL
     public let photoURL: String?
 
-    /// 電話番号
+    /// The account's phone number in E.164 format, present only when a phone credential is
+    /// linked.
     public let phoneNumber: String?
 
-    /// アカウント無効化フラグ
+    /// Whether the account is disabled and therefore blocked from signing in.
     public let disabled: Bool?
 
-    /// メタデータ
     public let metadata: Metadata?
 
-    /// プロバイダー情報
+    /// One entry per identity provider linked to the account, or `nil` when the payload omits
+    /// the list. Read the provider IDs here to tell a federated sign-in from an
+    /// email-and-password one.
     public let providerData: [ProviderInfo]?
 
-    /// メタデータ
+    /// Account timestamps reported by Firebase Auth.
+    ///
+    /// Both are kept as the strings the service sent; nothing here parses them into `Date`.
     public struct Metadata: Codable, Sendable {
-        /// 作成日時
         public let createdAt: String?
 
-        /// 最終ログイン日時
+        /// When the account most recently signed in, which equals `createdAt` right after a
+        /// sign-up.
         public let lastSignedInAt: String?
 
         private enum CodingKeys: String, CodingKey {
@@ -57,21 +66,22 @@ public struct AuthUserCreatedEvent: Codable, Sendable {
         }
     }
 
-    /// プロバイダー情報
+    /// One identity provider's view of the account.
+    ///
+    /// The values here come from the provider, so they can differ from the top-level ones: a
+    /// user can carry a different display name or photo at Google than the one Firebase Auth
+    /// shows.
     public struct ProviderInfo: Codable, Sendable {
-        /// プロバイダーID（例: "google.com", "apple.com"）
+        /// The provider's identifier, such as `google.com`, `apple.com`, or `password`.
         public let providerId: String?
 
-        /// プロバイダー固有のUID
+        /// The user's ID at that provider, which is unrelated to the Firebase `uid`.
         public let uid: String?
 
-        /// メールアドレス
         public let email: String?
 
-        /// 表示名
         public let displayName: String?
 
-        /// プロフィール写真URL
         public let photoURL: String?
     }
 
@@ -87,9 +97,10 @@ public struct AuthUserCreatedEvent: Codable, Sendable {
         case providerData
     }
 
-    /// 初期化
+    /// Creates the payload in code rather than decoding it from a request body.
     ///
-    /// Cloud Audit Logs からの変換など、プログラムでインスタンスを作成する場合に使用する。
+    /// Use it when a sign-up arrives as a `CloudAuditLogEvent` and you want to hand your own
+    /// code the same shape a native Firebase Auth event would have had.
     public init(
         uid: String,
         email: String? = nil,

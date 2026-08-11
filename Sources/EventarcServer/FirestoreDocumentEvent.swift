@@ -1,17 +1,27 @@
 import Foundation
 
-/// Firestore ドキュメントイベントペイロード
+/// The payload of a Firestore document change delivered by Eventarc.
 ///
-/// Eventarc トリガー:
+/// Eventarc triggers:
 /// - `google.cloud.firestore.document.v1.created`
 /// - `google.cloud.firestore.document.v1.updated`
 /// - `google.cloud.firestore.document.v1.deleted`
 /// - `google.cloud.firestore.document.v1.written`
 ///
-/// Firestore ドキュメントの変更時に送信されるイベント。
-/// 新しい値（`value`）と古い値（`oldValue`）を含む。
+/// Which of the three fields are populated is what tells the kinds of change apart, and it is
+/// the only way to tell under the `written` trigger, which fires for all three:
 ///
-/// ## 使用例
+/// | Change | `value` | `oldValue` | `updateMask` |
+/// | --- | --- | --- | --- |
+/// | create | set | `nil` | `nil` |
+/// | update | set | set | set |
+/// | delete | `nil` | set | `nil` |
+///
+/// - Important: Firestore triggers deliver `application/protobuf` only; there is no JSON
+///   delivery. Decode the request body with `FirestoreProtobufDecoder`, which is what produces
+///   instances of this type. The `Codable` conformance is for your own storage and fixtures.
+///
+/// ## Example
 /// ```swift
 /// server.webhook("webhooks", "firestore", "chat-created", body: FirestoreDocumentEvent.self) { request in
 ///     let event = request.body
@@ -22,27 +32,33 @@ import Foundation
 /// }
 /// ```
 public struct FirestoreDocumentEvent: Codable, Sendable {
-    /// 変更後のドキュメント（削除の場合はnil）
+    /// The document as it stands after the change, or `nil` for a delete.
     public let value: FirestoreDocument?
 
-    /// 変更前のドキュメント（作成の場合はnil）
+    /// The document as it stood before the change, populated for updates and deletes and `nil`
+    /// for a create.
+    ///
+    /// For a delete this is the only copy of the document you get.
     public let oldValue: FirestoreDocument?
 
-    /// 変更されたフィールドのマスク（更新の場合のみ）
+    /// The fields that changed, populated for updates only.
+    ///
+    /// Its presence is the cheapest way to recognise an update under the `written` trigger.
     public let updateMask: UpdateMask?
 
-    /// 更新マスク
+    /// The set of fields an update touched.
     public struct UpdateMask: Codable, Sendable {
-        /// 変更されたフィールドのパス
+        /// The paths of the changed fields, using `.` to descend into maps, as in `owner.name`.
+        ///
+        /// `nil` rather than empty when the event carried no paths.
         public let fieldPaths: [String]?
 
-        /// 直接初期化用イニシャライザ
         public init(fieldPaths: [String]?) {
             self.fieldPaths = fieldPaths
         }
     }
 
-    /// 直接初期化用イニシャライザ
+    /// Creates an event directly, as the protobuf decoder does and as tests do.
     public init(value: FirestoreDocument?, oldValue: FirestoreDocument?, updateMask: UpdateMask?) {
         self.value = value
         self.oldValue = oldValue
@@ -52,24 +68,37 @@ public struct FirestoreDocumentEvent: Codable, Sendable {
 
 // MARK: - Firestore Document
 
-/// Firestore ドキュメント
+/// A document snapshot in Firestore's own wire representation.
 ///
-/// Firestore の内部表現形式でのドキュメントデータ。
+/// Fields keep their type wrapper rather than being flattened into Swift values, so reach them
+/// through the typed getters below instead of touching `fields` directly.
 public struct FirestoreDocument: Codable, Sendable {
-    /// ドキュメントのフルパス
-    /// 例: `projects/my-project/databases/(default)/documents/users/abc123/books/xyz789`
+    /// The document's full resource name, for example
+    /// `projects/my-project/databases/(default)/documents/users/abc123/books/xyz789`.
+    ///
+    /// The protobuf decoder always sets this, using an empty string when the message omitted it,
+    /// so treat empty the way you would treat `nil`.
     public let name: String?
 
-    /// フィールド値（Firestore Value形式）
+    /// The document's top-level fields, each still wrapped in its Firestore type.
+    ///
+    /// Reserved names matching `__.*__` never appear, and a field name is at most 1,500 bytes
+    /// of UTF-8.
     public let fields: [String: FirestoreValue]?
 
-    /// 作成日時
+    /// When the document was created, as an ISO 8601 timestamp with fractional seconds.
+    ///
+    /// It increases monotonically when a document is deleted and recreated, so it is not stable
+    /// across a delete.
     public let createTime: String?
 
-    /// 更新日時
+    /// When the document last changed, as an ISO 8601 timestamp with fractional seconds.
+    ///
+    /// It starts equal to `createTime` and increases with every change, which makes it usable
+    /// for ordering two deliveries for the same document.
     public let updateTime: String?
 
-    /// 直接初期化用イニシャライザ
+    /// Creates a snapshot directly, as the protobuf decoder does and as tests do.
     public init(
         name: String?,
         fields: [String: FirestoreValue]?,
@@ -82,44 +111,58 @@ public struct FirestoreDocument: Codable, Sendable {
         self.updateTime = updateTime
     }
 
-    /// ドキュメントIDを取得
+    /// The document's own ID, the last segment of its resource name.
+    ///
+    /// `nil` only when `name` is `nil`; the path is not validated, so whatever follows the last
+    /// slash is returned.
     public var documentId: String? {
         guard let name = name else { return nil }
         return name.split(separator: "/").last.map(String.init)
     }
 
-    /// フィールドから文字列値を取得
+    /// Returns a top-level string field, or `nil` when the field is absent or holds another
+    /// type. Nothing is coerced.
     public func getString(_ key: String) -> String? {
         fields?[key]?.stringValue
     }
 
-    /// フィールドから整数値を取得
+    /// Returns a top-level integer field, parsing the decimal string Firestore transmits.
+    ///
+    /// `nil` when the field is absent, holds another type, or names a 64-bit value too large for
+    /// `Int` on this platform.
     public func getInt(_ key: String) -> Int? {
         guard let value = fields?[key]?.integerValue else { return nil }
         return Int(value)
     }
 
-    /// フィールドからブール値を取得
+    /// Returns a top-level boolean field, or `nil` when the field is absent or holds another
+    /// type.
     public func getBool(_ key: String) -> Bool? {
         fields?[key]?.booleanValue
     }
 
-    /// フィールドからダブル値を取得
+    /// Returns a top-level double field, or `nil` when the field is absent or holds another
+    /// type. A field Firestore stored as an integer does not come back here — use `getInt(_:)`.
     public func getDouble(_ key: String) -> Double? {
         fields?[key]?.doubleValue
     }
 
-    /// フィールドからタイムスタンプを取得
+    /// Returns a top-level timestamp field as its ISO 8601 string, or `nil` when the field is
+    /// absent or holds another type.
     public func getTimestamp(_ key: String) -> String? {
         fields?[key]?.timestampValue
     }
 
-    /// フィールドからマップ（ネストしたオブジェクト）を取得
+    /// Returns the fields of a top-level map field, still in their Firestore wrappers.
+    ///
+    /// Only one level deep: read a nested map from the returned dictionary yourself.
     public func getMap(_ key: String) -> [String: FirestoreValue]? {
         fields?[key]?.mapValue?.fields
     }
 
-    /// フィールドから配列を取得
+    /// Returns the elements of a top-level array field, still in their Firestore wrappers.
+    ///
+    /// Elements need not share a type, so unwrap each one on its own.
     public func getArray(_ key: String) -> [FirestoreValue]? {
         fields?[key]?.arrayValue?.values
     }
@@ -127,69 +170,67 @@ public struct FirestoreDocument: Codable, Sendable {
 
 // MARK: - Firestore Value
 
-/// Firestore 値の内部表現
+/// One field value in Firestore's typed wire representation.
 ///
-/// Firestore は型情報を含む特殊な JSON 形式を使用する。
+/// Firestore tags every value with its type instead of writing a bare JSON value, so this is a
+/// tagged union spelled as a struct: exactly one property is non-`nil`, and which one tells you
+/// the field's Firestore type. Read the one you expect and treat `nil` as "the field is not that
+/// type", never as "the field is empty".
 public struct FirestoreValue: Codable, Sendable {
-    /// 文字列値
     public let stringValue: String?
 
-    /// 整数値（文字列として表現）
+    /// A 64-bit integer, transmitted as a decimal string so that large values survive JSON.
     public let integerValue: String?
 
-    /// ブール値
     public let booleanValue: Bool?
 
-    /// ダブル値
     public let doubleValue: Double?
 
-    /// タイムスタンプ値
+    /// A timestamp, as an ISO 8601 string with fractional seconds when it came from the protobuf
+    /// decoder.
     public let timestampValue: String?
 
-    /// null値
+    /// Set when the field holds an explicit null. The string itself carries no information — the
+    /// protobuf decoder writes `"NULL_VALUE"` — so test only for presence.
     public let nullValue: String?
 
-    /// マップ値
+    /// A nested object, which can itself contain maps and arrays.
     public let mapValue: MapValue?
 
-    /// 配列値
+    /// An array, whose elements need not share a type.
     public let arrayValue: ArrayValue?
 
-    /// 参照値
+    /// A reference to another document, as that document's full resource name.
     public let referenceValue: String?
 
-    /// GeoPoint値
     public let geoPointValue: GeoPointValue?
 
-    /// バイト値（Base64エンコード）
+    /// A blob, Base64-encoded.
     public let bytesValue: String?
 
-    /// マップ値
+    /// The contents of a map value.
     public struct MapValue: Codable, Sendable {
         public let fields: [String: FirestoreValue]?
 
-        /// 直接初期化用イニシャライザ
         public init(fields: [String: FirestoreValue]?) {
             self.fields = fields
         }
     }
 
-    /// 配列値
+    /// The contents of an array value.
     public struct ArrayValue: Codable, Sendable {
         public let values: [FirestoreValue]?
 
-        /// 直接初期化用イニシャライザ
         public init(values: [FirestoreValue]?) {
             self.values = values
         }
     }
 
-    /// GeoPoint値
+    /// A geographical point, in degrees.
     public struct GeoPointValue: Codable, Sendable {
         public let latitude: Double?
         public let longitude: Double?
 
-        /// 直接初期化用イニシャライザ
         public init(latitude: Double?, longitude: Double?) {
             self.latitude = latitude
             self.longitude = longitude
@@ -198,7 +239,8 @@ public struct FirestoreValue: Codable, Sendable {
 
     // MARK: - Initializers
 
-    /// 空の値で初期化
+    /// Creates a value with no type set, which is what a protobuf value whose type is unset or
+    /// unrecognised decodes to. Every accessor on it is `nil`.
     public init() {
         self.stringValue = nil
         self.integerValue = nil
@@ -213,7 +255,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// 文字列値で初期化
     public init(stringValue: String) {
         self.stringValue = stringValue
         self.integerValue = nil
@@ -228,7 +269,8 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// 整数値で初期化
+    /// Creates an integer value from its decimal string form, which is how Firestore transmits
+    /// 64-bit integers.
     public init(integerValue: String) {
         self.stringValue = nil
         self.integerValue = integerValue
@@ -243,7 +285,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// ブール値で初期化
     public init(booleanValue: Bool) {
         self.stringValue = nil
         self.integerValue = nil
@@ -258,7 +299,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// ダブル値で初期化
     public init(doubleValue: Double) {
         self.stringValue = nil
         self.integerValue = nil
@@ -273,7 +313,8 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// タイムスタンプ値で初期化
+    /// Creates a timestamp value from its string form; callers pass ISO 8601 with fractional
+    /// seconds, matching what the protobuf decoder produces.
     public init(timestampValue: String) {
         self.stringValue = nil
         self.integerValue = nil
@@ -288,7 +329,8 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// null値で初期化
+    /// Creates an explicit null value. The string is a placeholder that is never interpreted;
+    /// the protobuf decoder passes `"NULL_VALUE"`.
     public init(nullValue: String) {
         self.stringValue = nil
         self.integerValue = nil
@@ -303,7 +345,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// マップ値で初期化
     public init(mapValue: MapValue) {
         self.stringValue = nil
         self.integerValue = nil
@@ -318,7 +359,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// 配列値で初期化
     public init(arrayValue: ArrayValue) {
         self.stringValue = nil
         self.integerValue = nil
@@ -333,7 +373,7 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// 参照値で初期化
+    /// Creates a document reference from the referenced document's full resource name.
     public init(referenceValue: String) {
         self.stringValue = nil
         self.integerValue = nil
@@ -348,7 +388,6 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// GeoPoint値で初期化
     public init(geoPointValue: GeoPointValue) {
         self.stringValue = nil
         self.integerValue = nil
@@ -363,7 +402,7 @@ public struct FirestoreValue: Codable, Sendable {
         self.bytesValue = nil
     }
 
-    /// バイト値で初期化
+    /// Creates a blob value from its Base64 encoding; the bytes are not decoded or validated.
     public init(bytesValue: String) {
         self.stringValue = nil
         self.integerValue = nil
@@ -382,24 +421,32 @@ public struct FirestoreValue: Codable, Sendable {
 // MARK: - Path Parameter Extraction
 
 extension FirestoreDocumentEvent {
-    /// ドキュメントパスからパラメータを抽出
+    /// Matches the changed document's path against a pattern and returns the named segments.
     ///
-    /// パスパターンに基づいてドキュメントパスからパラメータを抽出する。
+    /// The path is taken from `value` and falls back to `oldValue`, so this works for deletes as
+    /// well as creates and updates. Matching is exact and segment-by-segment: the pattern must
+    /// have the same number of segments as the document path, literal segments must be equal,
+    /// and `{name}` captures whatever segment sits in its place. There is no wildcard and no
+    /// prefix matching, so the `*` you write in an Eventarc `--event-filters-path-pattern` must
+    /// be rewritten as `{name}` here; a `*` would be compared literally and never match.
     ///
-    /// ## 使用例
+    /// ## Example
     /// ```swift
     /// let event: FirestoreDocumentEvent = ...
     /// let params = event.extractPathParams(pattern: "users/{userId}/books/{bookId}/chats/{chatId}")
     /// // params = ["userId": "abc123", "bookId": "xyz789", "chatId": "chat001"]
     /// ```
     ///
-    /// - Parameter pattern: パスパターン（`{param}` 形式のプレースホルダーを含む）
-    /// - Returns: 抽出されたパラメータ辞書、失敗時はnil
+    /// - Parameter pattern: The path below `documents/`, with `{name}` placeholders for the
+    ///   segments to capture. No leading slash.
+    /// - Returns: The captured segments, empty when the pattern has no placeholders, or `nil`
+    ///   when the event carries no document name, the name has no `/documents/` part, the
+    ///   segment counts differ, or a literal segment does not match.
     public func extractPathParams(pattern: String) -> [String: String]? {
         guard let name = value?.name ?? oldValue?.name else { return nil }
 
-        // Firestoreのフルパスからドキュメントパス部分を抽出
-        // 形式: projects/{project}/databases/(default)/documents/{path}
+        // Cut the document path out of the full resource name
+        // Shape: projects/{project}/databases/(default)/documents/{path}
         guard let documentsIndex = name.range(of: "/documents/") else { return nil }
         let documentPath = String(name[documentsIndex.upperBound...])
 
@@ -415,11 +462,11 @@ extension FirestoreDocumentEvent {
             let path = String(pathPart)
 
             if pattern.hasPrefix("{") && pattern.hasSuffix("}") {
-                // パラメータプレースホルダー
+                // A placeholder: capture this segment
                 let paramName = String(pattern.dropFirst().dropLast())
                 params[paramName] = path
             } else if pattern != path {
-                // 固定パス部分が一致しない
+                // A literal segment that does not match
                 return nil
             }
         }

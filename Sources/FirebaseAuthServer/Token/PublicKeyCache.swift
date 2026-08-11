@@ -4,29 +4,26 @@ import NIOCore
 import NIOHTTP1
 import Internal
 
-/// Google 公開鍵キャッシュ
+/// Holds Google's Firebase ID token signing certificates, keyed by key ID.
 ///
-/// Firebase ID トークンの署名検証に必要な公開鍵を取得・キャッシュする。
-/// Cache-Control ヘッダーの max-age に基づいて自動的にキャッシュを更新。
+/// The whole set of certificates is fetched in one request and kept until the `max-age` from the
+/// response's `Cache-Control` header runs out, or for one hour if that header is missing or
+/// unparseable. Nothing refreshes in the background: the next lookup after the deadline pays for the
+/// refresh, and so does any lookup for a key ID the cache has never seen.
 public actor PublicKeyCache {
-    /// キャッシュされた公開鍵（kid -> PEM 形式の X.509 証明書）
+    /// Key ID to PEM-encoded X.509 certificate, as returned by Google's endpoint.
     private var cachedKeys: [String: String] = [:]
 
-    /// キャッシュの有効期限
     private var cacheExpiry: Date?
 
-    /// HTTP クライアントプロバイダー
     private let httpClientProvider: HTTPClientProvider
 
-    /// 公開鍵エンドポイント
     private let publicKeysURL: URL
 
-    /// タイムアウト
     private let timeout: TimeInterval
 
-    /// デフォルトのキャッシュ有効期間（秒）
-    /// Cache-Control ヘッダーが取得できない場合に使用
-    private static let defaultCacheDuration: TimeInterval = 3600 // 1時間
+    /// How long to trust a fetch whose response carried no usable `max-age`, in seconds.
+    private static let defaultCacheDuration: TimeInterval = 3600 // 1 hour
 
     // MARK: - Initializers
 
@@ -42,17 +39,24 @@ public actor PublicKeyCache {
 
     // MARK: - Public Methods
 
-    /// 指定された kid に対応する公開鍵を取得
-    /// - Parameter kid: 鍵ID（JWT ヘッダーの kid クレーム）
-    /// - Returns: PEM 形式の X.509 証明書
-    /// - Throws: `AuthError.publicKeyNotFound` 指定された kid の鍵が見つからない場合
+    /// Returns the certificate for a key ID, fetching Google's key set first if it is stale or if the
+    /// key ID is unknown.
+    ///
+    /// An unrecognised key ID forces a fetch even inside the `max-age` window, which is what lets a
+    /// freshly rotated Google key be picked up. It also means a caller feeding in invented key IDs
+    /// triggers one network round trip per attempt.
+    ///
+    /// - Parameter kid: The key ID from the JWT header's `kid` field.
+    /// - Returns: A PEM-encoded X.509 certificate that contains the RSA public key.
+    /// - Throws: ``AuthError/publicKeyNotFound(kid:)`` if the key ID is still absent after a refresh,
+    ///   or ``AuthError/publicKeyFetchFailed(underlying:)`` if the refresh itself failed.
     public func getPublicKey(for kid: String) async throws -> String {
-        // キャッシュが有効な場合はキャッシュから返す
+        // Serve from the cache while it is fresh and holds this key ID
         if let expiry = cacheExpiry, Date() < expiry, let key = cachedKeys[kid] {
             return key
         }
 
-        // キャッシュが無効または kid が見つからない場合は更新
+        // Stale cache, or an unknown key ID: refresh
         try await refreshKeys()
 
         guard let key = cachedKeys[kid] else {
@@ -62,14 +66,18 @@ public actor PublicKeyCache {
         return key
     }
 
-    /// キャッシュを強制的に更新
+    /// Fetches Google's key set now, regardless of how fresh the cache is.
+    ///
+    /// The stored keys are replaced wholesale, so a key Google has dropped disappears here too, and
+    /// the expiry restarts from the new response. A failed fetch throws and leaves the previous cache
+    /// and its expiry untouched.
     public func refreshKeys() async throws {
         let (keys, maxAge) = try await fetchPublicKeys()
         cachedKeys = keys
         cacheExpiry = Date().addingTimeInterval(maxAge)
     }
 
-    /// 現在キャッシュされている全ての鍵を取得
+    /// Returns every certificate in the key set, refreshing first if the cache has expired.
     public func getAllKeys() async throws -> [String: String] {
         if let expiry = cacheExpiry, Date() < expiry {
             return cachedKeys
@@ -81,8 +89,13 @@ public actor PublicKeyCache {
 
     // MARK: - Private Methods
 
-    /// Google エンドポイントから公開鍵を取得
-    /// - Returns: 公開鍵マップと max-age 秒数
+    /// Fetches the key set from Google over `GET`.
+    ///
+    /// Anything other than `200` with a JSON body of key ID to PEM string is an error, including a
+    /// transport failure and an unparseable body; all of them surface as
+    /// ``AuthError/publicKeyFetchFailed(underlying:)``.
+    ///
+    /// - Returns: The key set, and the number of seconds it may be cached.
     private func fetchPublicKeys() async throws -> (keys: [String: String], maxAge: TimeInterval) {
         let client = httpClientProvider.client
 
@@ -110,11 +123,11 @@ public actor PublicKeyCache {
             )
         }
 
-        // レスポンスボディを取得
+        // Read the response body, refusing anything larger than 1 MB
         let body = try await response.body.collect(upTo: 1024 * 1024) // 1MB
         let data = body.toData()
 
-        // JSON をパース
+        // Parse the JSON
         let keys: [String: String]
         do {
             keys = try JSONDecoder().decode([String: String].self, from: data)
@@ -122,21 +135,25 @@ public actor PublicKeyCache {
             throw AuthError.publicKeyFetchFailed(underlying: error)
         }
 
-        // Cache-Control ヘッダーから max-age を取得
+        // Take max-age from the Cache-Control header
         let maxAge = parseMaxAge(from: response.headers)
 
         return (keys, maxAge)
     }
 
-    /// Cache-Control ヘッダーから max-age を解析
-    /// - Parameter headers: HTTP レスポンスヘッダー
-    /// - Returns: max-age 秒数（取得できない場合はデフォルト値）
+    /// Reads the `max-age` directive out of a `Cache-Control` header.
+    ///
+    /// Only `max-age` is honoured. Other directives, including `no-store` and `must-revalidate`, are
+    /// ignored, and a header without a numeric `max-age` falls back to the default duration.
+    ///
+    /// - Parameter headers: The response headers from the key set fetch.
+    /// - Returns: The cache lifetime in seconds.
     private func parseMaxAge(from headers: HTTPHeaders) -> TimeInterval {
         guard let cacheControl = headers.first(name: "Cache-Control") else {
             return Self.defaultCacheDuration
         }
 
-        // "max-age=xxxxx" を検索
+        // Look for "max-age=xxxxx"
         let components = cacheControl.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         for component in components {
             if component.lowercased().hasPrefix("max-age=") {

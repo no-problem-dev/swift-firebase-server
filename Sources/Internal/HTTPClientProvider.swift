@@ -2,25 +2,32 @@ import AsyncHTTPClient
 import Foundation
 import NIOCore
 
-/// HTTPクライアントを管理するプロバイダー
+/// Holds the `HTTPClient` a Firebase service client sends its requests through.
 ///
-/// FirestoreServer, StorageServer など複数のサービスで共有可能な
-/// HTTPクライアント管理機能を提供する。
+/// Pass an existing client when the host application already runs one, so its event loops and
+/// connection pool are reused; use the no-argument initializer to get a client of your own.
+/// Only a client this provider created is ever shut down.
 public final class HTTPClientProvider: Sendable {
-    /// HTTPクライアント
     private let httpClient: HTTPClient
 
-    /// 所有権フラグ（自身で作成したクライアントかどうか）
+    /// True when this provider created the client, which is the only case where `deinit` shuts
+    /// it down.
     private let ownsClient: Bool
 
-    /// シングルトンEventLoopGroupを使用して初期化
+    /// Creates a client on NIO's singleton event loop group.
+    ///
+    /// The client is shut down synchronously in `deinit`, which blocks the thread that releases
+    /// the last reference to this provider.
     public init() {
         self.httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
         self.ownsClient = true
     }
 
-    /// 既存のHTTPClientを使用して初期化
-    /// - Parameter client: 既存のHTTPClient（ライフサイクルは呼び出し側が管理）
+    /// Wraps a client the caller already owns.
+    ///
+    /// Nothing is shut down when this provider is deallocated; the caller keeps responsibility
+    /// for the client's lifecycle.
+    /// - Parameter client: An HTTP client that is already running.
     public init(client: HTTPClient) {
         self.httpClient = client
         self.ownsClient = false
@@ -32,7 +39,8 @@ public final class HTTPClientProvider: Sendable {
         }
     }
 
-    /// HTTPクライアントへのアクセス
+    /// The client to send requests on. Do not shut it down here; the provider does that when it
+    /// owns it.
     public var client: HTTPClient {
         httpClient
     }

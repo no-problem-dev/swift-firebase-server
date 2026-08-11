@@ -2,41 +2,32 @@ import Foundation
 
 // MARK: - Key Encoding Strategy
 
-/// キーのエンコーディング戦略
+/// How a Swift property name becomes a Firestore field name.
 ///
-/// Swiftのプロパティ名をFirestoreのフィールド名に変換する方法を指定する。
-///
-/// 使用例:
 /// ```swift
 /// let encoder = FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase)
 /// // userId → user_id
 /// // displayName → display_name
 /// ```
 public enum KeyEncodingStrategy: Sendable {
-    /// デフォルト（変換なし）
-    ///
-    /// プロパティ名をそのままフィールド名として使用する。
+    /// Writes the property name unchanged.
     case useDefaultKeys
 
-    /// camelCase → snake_case 変換
+    /// Rewrites camelCase into snake_case.
     ///
-    /// Swiftの標準的な命名規則（camelCase）から
-    /// Firestoreでよく使われるsnake_caseに変換する。
-    ///
-    /// 例:
+    /// Runs of capitals stay together, so the conversion is lossy and does not round-trip back
+    /// through `convertFromSnakeCase`:
     /// - `userId` → `user_id`
     /// - `createdAt` → `created_at`
     /// - `isActive` → `is_active`
     case convertToSnakeCase
 
-    /// カスタム変換
-    ///
-    /// 独自のキー変換ロジックを指定する。
+    /// Applies a closure of your own to every key.
     case custom(@Sendable (String) -> String)
 
-    /// キーを変換する
-    /// - Parameter key: 元のキー
-    /// - Returns: 変換後のキー
+    /// Applies the strategy to one key.
+    /// - Parameter key: The Swift property name.
+    /// - Returns: The Firestore field name to write.
     func encode(_ key: String) -> String {
         switch self {
         case .useDefaultKeys:
@@ -51,41 +42,38 @@ public enum KeyEncodingStrategy: Sendable {
 
 // MARK: - Key Decoding Strategy
 
-/// キーのデコーディング戦略
+/// How a Firestore field name is matched against a Swift property name.
 ///
-/// Firestoreのフィールド名をSwiftのプロパティ名に変換する方法を指定する。
+/// A field whose name already matches the property exactly always wins, whichever strategy is
+/// in force; the strategy only decides how the remaining names are resolved.
 ///
-/// 使用例:
 /// ```swift
 /// let decoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
 /// // user_id → userId
 /// // display_name → displayName
 /// ```
 public enum KeyDecodingStrategy: Sendable {
-    /// デフォルト（変換なし）
-    ///
-    /// フィールド名をそのままプロパティ名として使用する。
+    /// Matches field names to property names verbatim.
     case useDefaultKeys
 
-    /// snake_case → camelCase 変換
+    /// Rewrites snake_case into camelCase.
     ///
-    /// Firestoreでよく使われるsnake_caseから
-    /// Swiftの標準的な命名規則（camelCase）に変換する。
-    ///
-    /// 例:
+    /// The conversion is not the exact inverse of `convertToSnakeCase`, because a run of
+    /// capitals cannot be recovered:
     /// - `user_id` → `userId`
     /// - `created_at` → `createdAt`
-    /// - `is_active` → `isActive`
+    /// - `is_https_enabled` → `isHttpsEnabled`
     case convertFromSnakeCase
 
-    /// カスタム変換
+    /// Applies a closure of your own to every key.
     ///
-    /// 独自のキー変換ロジックを指定する。
+    /// The decoder cannot invert the closure, so it resolves each property by transforming
+    /// every field name in the document until one matches.
     case custom(@Sendable (String) -> String)
 
-    /// キーを変換する
-    /// - Parameter key: 元のキー
-    /// - Returns: 変換後のキー
+    /// Applies the strategy to one key.
+    /// - Parameter key: The Firestore field name.
+    /// - Returns: The Swift property name it stands for.
     func decode(_ key: String) -> String {
         switch self {
         case .useDefaultKeys:
@@ -101,11 +89,10 @@ public enum KeyDecodingStrategy: Sendable {
 // MARK: - String Extensions
 
 extension String {
-    /// camelCase を snake_case に変換
+    /// Rewrites camelCase into snake_case.
     ///
-    /// - Returns: snake_case形式の文字列
-    ///
-    /// 変換例:
+    /// A run of capitals is kept as one word and only broken before its last letter, and an
+    /// underscore already in the string is never doubled:
     /// - `userId` → `user_id`
     /// - `displayName` → `display_name`
     /// - `createdAt` → `created_at`
@@ -124,10 +111,11 @@ extension String {
                 let nextIsLowercase = index + 1 < chars.count && chars[index + 1].isLowercase
                 let previousIsUnderscore = index > 0 && chars[index - 1] == "_"
 
-                // アンダースコアを追加するケース:
-                // 1. 先頭でない かつ
-                // 2. 前の文字がアンダースコアでない かつ
-                // 3. (前の文字が小文字である または (前の文字が大文字で次の文字が小文字である))
+                // Insert an underscore when:
+                // 1. this is not the first character, and
+                // 2. the previous character is not already an underscore, and
+                // 3. the previous character is lowercase, or it is uppercase and the next one
+                //    is lowercase (the last capital of a run, as in URLString)
                 if !isFirst && !previousIsUnderscore {
                     if !previousIsUppercase || nextIsLowercase {
                         result.append("_")
@@ -142,11 +130,11 @@ extension String {
         return result
     }
 
-    /// snake_case を camelCase に変換
+    /// Rewrites snake_case into camelCase.
     ///
-    /// - Returns: camelCase形式の文字列
-    ///
-    /// 変換例:
+    /// A string without an underscore is returned untouched, and each underscore is dropped in
+    /// favour of capitalising the character after it — so a leading underscore capitalises the
+    /// first letter and a trailing one simply disappears:
     /// - `user_id` → `userId`
     /// - `display_name` → `displayName`
     /// - `created_at` → `createdAt`

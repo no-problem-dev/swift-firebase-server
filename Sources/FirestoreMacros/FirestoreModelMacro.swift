@@ -14,23 +14,23 @@ extension FirestoreModelMacro: MemberMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // 構造体であることを確認
+        // Reject anything that is not a struct
         guard let structDecl = declaration.as(StructDeclSyntax.self) else {
             throw MacroError.requiresStruct
         }
 
-        // keyStrategyを取得
+        // The model-wide default strategy
         let keyStrategy = extractKeyStrategy(from: node)
 
-        // プロパティ情報を収集
+        // Stored properties with their per-field attributes resolved
         let properties = collectProperties(from: structDecl, defaultStrategy: keyStrategy)
 
         var declarations: [DeclSyntax] = []
 
-        // CodingKeysを生成する必要があるか確認
-        // - カスタムキーがある
-        // - keyStrategyがsnakeCaseである
-        // - @FieldIgnoreがある
+        // CodingKeys is only worth generating when some key differs from its property name:
+        // - a custom @Field key
+        // - a snakeCase strategy
+        // - a @FieldIgnore to leave out
         let needsCodingKeys = properties.contains { prop in
             prop.customKey != nil || prop.strategy == .snakeCase || prop.isIgnored
         }
@@ -72,7 +72,10 @@ extension FirestoreModelMacro: MemberMacro {
 
     // MARK: - Private Helpers
 
-    /// マクロ属性からkeyStrategyを抽出
+    /// Reads `keyStrategy:` off the attribute.
+    ///
+    /// Falls back to `.useDefault` when the argument is absent or names a case this macro does
+    /// not know, so an unrecognized strategy silently means "no conversion".
     private static func extractKeyStrategy(from node: AttributeSyntax) -> KeyStrategy {
         guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
             return .useDefault
@@ -95,7 +98,11 @@ extension FirestoreModelMacro: MemberMacro {
         return .useDefault
     }
 
-    /// 構造体のプロパティ情報を収集
+    /// Collects the struct's stored properties with their `@Field` and `@FieldIgnore` attributes
+    /// resolved against the model default.
+    ///
+    /// Only the first binding of each `var`/`let` is read, so a multiple-binding declaration
+    /// such as `let a, b: String` contributes only `a`.
     private static func collectProperties(
         from structDecl: StructDeclSyntax,
         defaultStrategy: KeyStrategy
@@ -107,12 +114,12 @@ extension FirestoreModelMacro: MemberMacro {
                 continue
             }
 
-            // 計算プロパティは除外
+            // Leave computed properties out of the mapping
             guard isStoredProperty(varDecl) else {
                 continue
             }
 
-            // プロパティ名を取得
+            // The property name
             guard let binding = varDecl.bindings.first,
                   let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
                 continue
@@ -120,7 +127,7 @@ extension FirestoreModelMacro: MemberMacro {
 
             let propertyName = pattern.identifier.text
 
-            // 属性を解析
+            // Read the attributes on the property
             var customKey: String?
             var fieldStrategy: KeyStrategy?
             var isIgnored = false
@@ -133,7 +140,7 @@ extension FirestoreModelMacro: MemberMacro {
 
                 switch identifier.name.text {
                 case "Field":
-                    // @Field("key") または @Field(strategy: .snakeCase)
+                    // Either @Field("key") or @Field(strategy: .snakeCase)
                     if let key = FieldMacro.extractKey(from: attr) {
                         customKey = key
                     } else if let strategy = FieldStrategyMacro.extractStrategy(from: attr) {
@@ -146,7 +153,7 @@ extension FirestoreModelMacro: MemberMacro {
                 }
             }
 
-            // 最終的な戦略を決定
+            // A per-field strategy beats the model default
             let effectiveStrategy = fieldStrategy ?? defaultStrategy
 
             properties.append(PropertyInfo(
@@ -160,20 +167,25 @@ extension FirestoreModelMacro: MemberMacro {
         return properties
     }
 
-    /// 保存プロパティかどうかを判定（計算プロパティを除外）
+    /// Reports whether the declaration is a stored property that belongs in the mapping.
+    ///
+    /// Detection works off an explicit accessor list: a `get` or `set` accessor means computed,
+    /// while `willSet`/`didSet` still count as stored. A getter written in shorthand
+    /// (`var name: String { "" }`) parses as a code block rather than an accessor list and is
+    /// therefore reported as stored.
     private static func isStoredProperty(_ varDecl: VariableDeclSyntax) -> Bool {
         guard let binding = varDecl.bindings.first else {
             return false
         }
 
-        // アクセサブロックがある場合は計算プロパティの可能性
+        // An accessor block may mean the property is computed
         if let accessorBlock = binding.accessorBlock {
-            // getキーワードがあれば計算プロパティ
+            // A get accessor means computed
             if case .accessors(let accessors) = accessorBlock.accessors {
                 for accessor in accessors {
                     if accessor.accessorSpecifier.tokenKind == .keyword(.get) ||
                         accessor.accessorSpecifier.tokenKind == .keyword(.set) {
-                        // willSet/didSetは保存プロパティ
+                        // willSet/didSet leave the property stored
                         if accessor.accessorSpecifier.tokenKind != .keyword(.willSet) &&
                             accessor.accessorSpecifier.tokenKind != .keyword(.didSet) {
                             return false
@@ -186,12 +198,12 @@ extension FirestoreModelMacro: MemberMacro {
         return true
     }
 
-    /// CodingKeys enumを生成
+    /// Generates the `CodingKeys` enum, one case per mapped property.
     private static func generateCodingKeys(properties: [PropertyInfo]) -> DeclSyntax {
         var caseDeclarations: [String] = []
 
         for prop in properties {
-            // @FieldIgnoreはスキップ
+            // @FieldIgnore properties get no case, which is what excludes them
             if prop.isIgnored {
                 continue
             }
@@ -200,15 +212,15 @@ extension FirestoreModelMacro: MemberMacro {
             let keyValue = prop.effectiveKey
 
             if caseName == keyValue {
-                // キー名がプロパティ名と同じ場合はrawValueを省略
+                // Same name either way, so the raw value can be left off
                 caseDeclarations.append("case \(caseName)")
             } else {
-                // カスタムキーまたは変換されたキー
+                // A custom or converted key
                 caseDeclarations.append("case \(caseName) = \"\(keyValue)\"")
             }
         }
 
-        // 各caseを改行でjoin（インデントはDeclSyntaxリテラル内で統一）
+        // Join the cases; the indentation comes from the DeclSyntax literal below
         let casesBody = caseDeclarations.joined(separator: "\n    ")
 
         return DeclSyntax(stringLiteral: """
@@ -231,8 +243,8 @@ extension FirestoreModelMacro: ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
-        // Codable, Sendable, FirestoreModelProtocol を付与
-        // Codable の synthesized conformance を有効にするため、同じ extension で宣言する
+        // FirestoreModelProtocol brings Sendable with it, so only Codable has to be added here
+        // Both go in one extension so the compiler still synthesizes the Codable conformance
         let ext: DeclSyntax = """
             extension \(type.trimmed): FirestoreModelProtocol, Codable {}
             """
@@ -247,12 +259,14 @@ extension FirestoreModelMacro: ExtensionMacro {
 
 // MARK: - Supporting Types
 
-/// キー変換戦略
+/// The macro-side mirror of `FirestoreKeyStrategy`.
+///
+/// The raw values match the case names as written in the attribute, which is how a
+/// `@Field(strategy:)` argument is turned back into a strategy.
 enum KeyStrategy: String {
     case useDefault
     case snakeCase
 
-    /// プロパティ名をキー名に変換
     func transform(_ propertyName: String) -> String {
         switch self {
         case .useDefault:
@@ -263,14 +277,16 @@ enum KeyStrategy: String {
     }
 }
 
-/// プロパティ情報
 struct PropertyInfo {
     let name: String
     let customKey: String?
     let strategy: KeyStrategy
     let isIgnored: Bool
 
-    /// 最終的なキー名を取得
+    /// The Firestore field name for this property.
+    ///
+    /// A `@Field("key")` wins outright; otherwise the resolved strategy is applied to the
+    /// property name.
     var effectiveKey: String {
         if let customKey = customKey {
             return customKey
@@ -282,9 +298,11 @@ struct PropertyInfo {
 // MARK: - String Extension for Snake Case Conversion
 
 extension String {
-    /// camelCase を snake_case に変換
+    /// Converts camelCase to snake_case at expansion time.
     ///
-    /// Phase 1のKeyStrategy.swiftと同じロジック
+    /// Mirrors the runtime conversion in FirestoreServer's `KeyStrategy`, which a compiler
+    /// plugin cannot import — the two have to stay in step or a key baked into `CodingKeys`
+    /// stops matching what the encoder would produce.
     func convertToSnakeCase() -> String {
         guard !isEmpty else { return self }
 
@@ -298,10 +316,11 @@ extension String {
                 let nextIsLowercase = index + 1 < chars.count && chars[index + 1].isLowercase
                 let previousIsUnderscore = index > 0 && chars[index - 1] == "_"
 
-                // アンダースコアを追加するケース:
-                // 1. 先頭でない かつ
-                // 2. 前の文字がアンダースコアでない かつ
-                // 3. (前の文字が小文字である または (前の文字が大文字で次の文字が小文字である))
+                // Insert an underscore when:
+                // 1. this is not the first character, and
+                // 2. the previous character is not already an underscore, and
+                // 3. the previous character is lowercase, or it is uppercase and the next one
+                //    is lowercase (the last capital of a run, as in URLString)
                 if !isFirst && !previousIsUnderscore {
                     if !previousIsUppercase || nextIsLowercase {
                         result.append("_")

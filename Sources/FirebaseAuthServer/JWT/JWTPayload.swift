@@ -1,80 +1,70 @@
 import Foundation
 
-/// Firebase ID トークンの JWT ペイロード
+/// The claims carried by a Firebase Authentication ID token.
 ///
-/// Firebase Authentication が発行する ID トークンに含まれるクレーム。
-/// [Firebase ドキュメント](https://firebase.google.com/docs/auth/admin/verify-id-tokens) に基づく。
+/// The claim set follows the [Firebase documentation](https://firebase.google.com/docs/auth/admin/verify-id-tokens).
+/// The six required claims are non-optional here, so a token missing any of them fails to decode
+/// rather than failing verification. Claims that are not listed below — including custom claims set
+/// through the Admin SDK — are dropped during decoding.
 struct JWTPayload: Codable, Sendable {
     // MARK: - Required Claims
 
-    /// トークンの有効期限（UNIX タイムスタンプ）
+    /// Expiry, as a UNIX timestamp.
     ///
-    /// この時刻が現在時刻より未来であることを検証
+    /// Verification rejects the token once this has passed, allowing for the verifier's clock skew.
     let exp: Int
 
-    /// トークンの発行時刻（UNIX タイムスタンプ）
+    /// Issue time, as a UNIX timestamp.
     ///
-    /// この時刻が現在時刻より過去であることを検証
+    /// Verification rejects a token issued in the future, allowing for the verifier's clock skew.
     let iat: Int
 
-    /// 対象者（Audience）
-    ///
-    /// Firebase プロジェクトID と一致することを検証
+    /// The audience, which must equal the Firebase project ID.
     let aud: String
 
-    /// 発行者（Issuer）
-    ///
-    /// `https://securetoken.google.com/{projectId}` と一致することを検証
+    /// The issuer, which must equal `https://securetoken.google.com/{projectId}`.
     let iss: String
 
-    /// 主体（Subject）= Firebase UID
-    ///
-    /// 非空文字列であることを検証
+    /// The subject: the Firebase UID. Verification requires it to be non-empty.
     let sub: String
 
-    /// 認証時刻（UNIX タイムスタンプ）
+    /// When the user actually authenticated, as a UNIX timestamp.
     ///
-    /// この時刻が現在時刻より過去であることを検証
+    /// Verification rejects an authentication time in the future, allowing for clock skew, but never
+    /// checks how long ago it was — this is the claim to read yourself if an operation needs a recent
+    /// sign-in.
     let auth_time: Int
 
     // MARK: - Optional Claims
 
-    /// メールアドレス
     let email: String?
 
-    /// メールアドレス確認済みフラグ
     let email_verified: Bool?
 
-    /// ユーザー名
     let name: String?
 
-    /// プロフィール画像URL
     let picture: String?
 
-    /// 電話番号
     let phone_number: String?
 
-    /// Firebase 認証情報
+    /// The `firebase` claim, holding the sign-in provider and linked identities.
     let firebase: FirebaseClaim?
 
     // MARK: - Computed Properties
 
-    /// 有効期限（Date 型）
     var expiresAt: Date {
         Date(timeIntervalSince1970: TimeInterval(exp))
     }
 
-    /// 発行時刻（Date 型）
     var issuedAt: Date {
         Date(timeIntervalSince1970: TimeInterval(iat))
     }
 
-    /// 認証時刻（Date 型）
     var authTime: Date {
         Date(timeIntervalSince1970: TimeInterval(auth_time))
     }
 
-    /// Firebase UID（sub クレームのエイリアス）
+    /// The Firebase UID, an alias for the `sub` claim.
     var uid: String {
         sub
     }
@@ -82,22 +72,23 @@ struct JWTPayload: Codable, Sendable {
 
 // MARK: - Firebase Claim
 
-/// Firebase 固有のクレーム情報
+/// The contents of the `firebase` claim that Firebase Authentication adds to every ID token.
 public struct FirebaseClaim: Codable, Sendable {
-    /// サインインプロバイダー
-    ///
-    /// 例: "password", "google.com", "apple.com"
+    /// How the user signed in, such as `password`, `google.com`, or `apple.com`.
     public let sign_in_provider: String?
 
-    /// サインイン時のセカンドファクター
+    /// The second factor used at sign-in, present only when multi-factor authentication was required.
     public let sign_in_second_factor: String?
 
-    /// セカンドファクター識別子
     public let second_factor_identifier: String?
 
-    /// テナントID（マルチテナント環境用）
+    /// The tenant this user belongs to, in an Identity Platform multi-tenant project.
+    ///
+    /// Verification does not check it, so a single-tenant server that starts using tenants has to
+    /// compare this itself.
     public let tenant: String?
 
-    /// 認証プロバイダーの識別子情報
+    /// The identifiers each provider knows this user by, such as
+    /// `["google.com": ["1234…"], "email": ["user@example.com"]]`.
     public let identities: [String: [String]]?
 }

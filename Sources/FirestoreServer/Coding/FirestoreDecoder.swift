@@ -1,10 +1,17 @@
 import Foundation
 
-/// FirestoreValue/DocumentからSwift型に変換するデコーダー
+/// Decodes Firestore REST field values into `Decodable` types.
 ///
-/// Firestore REST APIのレスポンスをCodableな型に変換する。
+/// A `timestampValue` decodes only into `Date` and a `bytesValue` only into `Data`; any other
+/// mismatch between the stored value and the requested type throws
+/// `FirestoreDecodingError.typeMismatch`, with two deliberate exceptions: a field absent from
+/// the document decodes as `nil` for an optional property, and an `integerValue` widens into
+/// `Double` and `Float`.
 ///
-/// 使用例:
+/// - Note: The narrower integer types are read as `Int64` and converted with non-failable
+///   initializers, so a stored value that does not fit the property's type — a negative number
+///   read into `UInt`, or 300 read into `Int8` — traps instead of throwing.
+///
 /// ```swift
 /// struct User: Codable {
 ///     let name: String
@@ -14,48 +21,46 @@ import Foundation
 /// let decoder = FirestoreDecoder()
 /// let user: User = try decoder.decode(User.self, from: firestoreDocument)
 ///
-/// // snake_caseからの変換を使用する場合
+/// // Converting from snake_case
 /// struct UserProfile: Codable {
-///     let userId: String      // Firestoreでは "user_id"
-///     let displayName: String // Firestoreでは "display_name"
+///     let userId: String      // "user_id" in Firestore
+///     let displayName: String // "display_name" in Firestore
 /// }
 /// let snakeCaseDecoder = FirestoreDecoder(keyDecodingStrategy: .convertFromSnakeCase)
 /// let profile: UserProfile = try snakeCaseDecoder.decode(UserProfile.self, from: fields)
 /// ```
 public struct FirestoreDecoder: Sendable {
-    /// キーのデコーディング戦略
     public let keyDecodingStrategy: KeyDecodingStrategy
 
-    /// イニシャライザ
-    /// - Parameter keyDecodingStrategy: キーのデコーディング戦略（デフォルト: .useDefaultKeys）
+    /// - Parameter keyDecodingStrategy: How field names are matched to property names. Defaults
+    ///   to matching them verbatim.
     public init(keyDecodingStrategy: KeyDecodingStrategy = .useDefaultKeys) {
         self.keyDecodingStrategy = keyDecodingStrategy
     }
 
-    /// FirestoreDocumentからDecodableな型に変換
+    /// Decodes a document's fields into a value.
     /// - Parameters:
-    ///   - type: デコード先の型
-    ///   - document: Firestoreドキュメント
-    /// - Returns: デコードされた値
+    ///   - type: The type to decode into.
+    ///   - document: The document to read. Only its `fields` are used — `name`, `createTime`,
+    ///     and `updateTime` are not exposed to the decoded type, so a model that needs its own
+    ///     ID has to take it from `documentId` separately.
     public func decode<T: Decodable>(_ type: T.Type, from document: FirestoreDocument) throws -> T {
         try decode(type, from: document.fields)
     }
 
-    /// FirestoreValueのマップからDecodableな型に変換
+    /// Decodes a field map into a value.
     /// - Parameters:
-    ///   - type: デコード先の型
-    ///   - fields: フィールドマップ
-    /// - Returns: デコードされた値
+    ///   - type: The type to decode into.
+    ///   - fields: The field map, as it appears in a document's `fields`.
     public func decode<T: Decodable>(_ type: T.Type, from fields: [String: FirestoreValue]) throws -> T {
         let decoder = _FirestoreDecoder(value: .map(fields), keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
 
-    /// 単一のFirestoreValueからDecodableな型に変換
+    /// Decodes a single field value, for anything that is not a whole document.
     /// - Parameters:
-    ///   - type: デコード先の型
-    ///   - value: FirestoreValue
-    /// - Returns: デコードされた値
+    ///   - type: The type to decode into.
+    ///   - value: The value to read, which may be a scalar or an array as well as a map.
     public func decodeValue<T: Decodable>(_ type: T.Type, from value: FirestoreValue) throws -> T {
         let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
@@ -112,7 +117,7 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
     var codingPath: [CodingKey]
     var allKeys: [Key] {
         fields.keys.compactMap { firestoreKey in
-            // Firestoreのキーを変換してSwiftのキーを生成
+            // Turn each Firestore field name back into a Swift property name
             let swiftKey = keyDecodingStrategy.decode(firestoreKey)
             return Key(stringValue: swiftKey)
         }
@@ -142,30 +147,32 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
         return false
     }
 
-    /// SwiftのキーからFirestoreのキーを取得する
-    /// - Parameter key: Swiftのキー（camelCase）
-    /// - Returns: Firestoreのキー（snake_case）、見つからない場合はnil
+    /// Finds the field name that holds the value for a property.
+    ///
+    /// An exact match always wins, whatever the strategy; only then is the strategy consulted.
+    /// - Parameter key: The Swift property name.
+    /// - Returns: The Firestore field name, or `nil` when the document has no such field.
     private func getFirestoreKey(for key: Key) -> String? {
         let swiftKeyString = key.stringValue
 
-        // まず完全一致を試す
+        // Try an exact match first
         if fields[swiftKeyString] != nil {
             return swiftKeyString
         }
 
-        // 戦略に基づいてキーを変換して探す
+        // Otherwise resolve through the strategy
         switch keyDecodingStrategy {
         case .useDefaultKeys:
             return nil
         case .convertFromSnakeCase:
-            // camelCaseをsnake_caseに変換して探す
+            // Convert the camelCase property name to snake_case and look that up
             let snakeCaseKey = swiftKeyString.convertToSnakeCase()
             if fields[snakeCaseKey] != nil {
                 return snakeCaseKey
             }
             return nil
         case .custom:
-            // カスタム戦略の場合、全てのキーを変換して一致を探す
+            // A custom transform cannot be inverted, so convert every field name until one matches
             for firestoreKey in fields.keys {
                 let decodedKey = keyDecodingStrategy.decode(firestoreKey)
                 if decodedKey == swiftKeyString {
@@ -250,7 +257,7 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         let value = try getValue(for: key)
 
-        // 特殊な型のハンドリング
+        // Types with a Firestore value of their own
         if type == Date.self {
             guard case .timestamp(let date) = value else {
                 throw FirestoreDecodingError.typeMismatch(expected: "timestamp", actual: value)
@@ -265,7 +272,7 @@ private struct FirestoreKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingCon
             return data as! T
         }
 
-        // 一般的なDecodable
+        // Everything else re-enters the decoder
         let decoder = _FirestoreDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy)
         return try T(from: decoder)
     }
@@ -578,7 +585,7 @@ private struct FirestoreSingleValueDecodingContainer: SingleValueDecodingContain
 
 // MARK: - Error
 
-/// デコーディングエラー
+/// A value that could not be decoded from Firestore.
 public enum FirestoreDecodingError: Error, Sendable {
     case keyNotFound(String)
     case typeMismatch(expected: String, actual: FirestoreValue)

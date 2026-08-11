@@ -1,16 +1,19 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@FirestoreSchema`マクロの実装
+/// The expansion behind `@FirestoreSchema`.
 ///
-/// structに適用し、以下を自動生成する:
-/// - `init(client:)` イニシャライザ
-/// - `client` プロパティ
-/// - `database` プロパティ
-/// - 各コレクションのインスタンスプロパティ
-/// - サブコレクションを持つコレクション用の専用Collection/Document型
+/// Applied to a struct, it generates:
+/// - an `init(client:)`
+/// - a `client` property
+/// - a `database` property forwarded from the client
+/// - one instance property per top-level collection
+/// - dedicated collection and document types for the collections that have sub-collections
 ///
-/// 生成例:
+/// Nested enums without a `@Collection` attribute are ignored rather than rejected. Applying the
+/// macro to anything but a struct throws "@FirestoreSchema can only be applied to structs".
+///
+/// Expansion:
 /// ```swift
 /// @FirestoreSchema
 /// struct Schema {
@@ -24,16 +27,16 @@ import SwiftSyntaxMacros
 ///     enum Genres {}
 /// }
 ///
-/// // 展開後:
-/// // - Schema.users: UsersCollection（専用型、サブコレクションあり）
-/// // - Schema.genres: FirestoreCollection<Genre>（汎用型、サブコレクションなし）
+/// // expands to:
+/// // - Schema.users: UsersCollection (dedicated type, because it has sub-collections)
+/// // - Schema.genres: FirestoreCollection<Genre> (generic type, no sub-collections)
 /// // - UsersCollection.document(_:) -> UsersDocument
 /// // - UsersDocument.books: FirestoreCollection<Book>
 ///
-/// // 使用例:
+/// // usage:
 /// let schema = Schema(client: firestoreClient)
 /// let user = try await schema.users.document("userId").get()
-/// let books = schema.users.document("userId").books  // サブコレクションへのアクセス
+/// let books = schema.users.document("userId").books  // reaching the sub-collection
 /// ```
 public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
 
@@ -49,12 +52,12 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             throw MacroError.message("@FirestoreSchema can only be applied to structs")
         }
 
-        // コレクション構造を再帰的にパース
+        // Parse the collection tree recursively
         let rootCollections = parseCollections(in: structDecl)
 
         var result: [DeclSyntax] = []
 
-        // 基本プロパティ
+        // Core members every schema gets
         result.append("public let client: FirestoreClient")
         result.append("public var database: DatabasePath { client.database }")
         result.append("""
@@ -63,19 +66,19 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             }
             """)
 
-        // トップレベルコレクションプロパティを生成
+        // One property per top-level collection
         for collection in rootCollections {
             let propertyName = collection.enumName.lowercasedFirst()
 
             if collection.subCollections.isEmpty {
-                // サブコレクションなし → 汎用FirestoreCollectionを使用
+                // No sub-collections: the generic FirestoreCollection is enough
                 result.append("""
                     public var \(raw: propertyName): FirestoreCollection<\(raw: collection.modelType)> {
                         FirestoreCollection(collectionId: \(raw: collection.enumName).collectionId, database: database, client: client)
                     }
                     """)
             } else {
-                // サブコレクションあり → 専用Collection型を使用
+                // Has sub-collections: hand out the dedicated collection type
                 let collectionTypeName = "\(collection.enumName)Collection"
                 result.append("""
                     public var \(raw: propertyName): \(raw: collectionTypeName) {
@@ -85,7 +88,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             }
         }
 
-        // サブコレクションを持つコレクション用の専用型を生成
+        // Emit the dedicated types for the collections that have sub-collections
         for collection in rootCollections where !collection.subCollections.isEmpty {
             let generatedTypes = generateCollectionTypes(for: collection, parentPath: nil)
             for typeDecl in generatedTypes {
@@ -113,7 +116,8 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
 
     // MARK: - Collection Type Generation
 
-    /// サブコレクションを持つコレクション用の専用Collection型とDocument型を生成
+    /// Generates the dedicated collection and document types for a collection that has
+    /// sub-collections, with one sub-collection accessor per child on the document type.
     private static func generateCollectionTypes(
         for collection: CollectionNode,
         parentPath: String?
@@ -123,7 +127,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         let collectionTypeName = "\(collection.enumName)Collection"
         let documentTypeName = "\(collection.enumName)Document"
 
-        // parentPath計算用のコード生成
+        // Source for the parentPath expression
         let parentPathExpr: String
         if let parentPath = parentPath {
             parentPathExpr = "\"\(parentPath)/\\(parentDocumentId)\""
@@ -157,7 +161,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
 
         let parentDocumentIdProperty = parentPath != nil ? "public let parentDocumentId: String" : ""
 
-        // Collection型を生成
+        // The collection type
         result.append("""
             public struct \(raw: collectionTypeName): FirestoreCollectionProtocol {
                 public typealias Model = \(raw: collection.modelType)
@@ -180,13 +184,13 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             }
             """)
 
-        // Document型を生成（サブコレクションアクセサ付き）
+        // The document type, carrying one accessor per sub-collection
         let subCollectionAccessors = collection.subCollections.map { sub in
             let accessorName = sub.enumName.lowercasedFirst()
             let subCollectionId = sub.collectionId
 
             if sub.subCollections.isEmpty {
-                // サブコレクションなし → 汎用FirestoreCollection
+                // Leaf sub-collection: the generic FirestoreCollection
                 return """
                     public var \(accessorName): FirestoreCollection<\(sub.modelType)> {
                             FirestoreCollection(
@@ -198,7 +202,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
                         }
                     """
             } else {
-                // さらにサブコレクションあり → 専用Collection型
+                // Has sub-collections of its own: the dedicated collection type
                 let subCollectionTypeName = "\(sub.enumName)Collection"
                 return """
                     public var \(accessorName): \(subCollectionTypeName) {
@@ -237,7 +241,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             }
             """)
 
-        // ネストされたサブコレクションに対しても再帰的に型を生成
+        // Recurse into the sub-collections that have children of their own
         for sub in collection.subCollections where !sub.subCollections.isEmpty {
             let subParentPath = collection.collectionId
             let nestedTypes = generateNestedCollectionTypes(
@@ -250,7 +254,11 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         return result
     }
 
-    /// 2階層以上ネストされたサブコレクション用の型を生成
+    /// Generates the types for a sub-collection nested two or more levels deep, which need a
+    /// grandparent path as well as the parent document ID.
+    ///
+    /// This level does not recurse: its document type exposes each child as a generic
+    /// `FirestoreCollection`, so a collection nested below that gets no accessor.
     private static func generateNestedCollectionTypes(
         for collection: CollectionNode,
         ancestorCollectionId: String
@@ -260,7 +268,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         let collectionTypeName = "\(collection.enumName)Collection"
         let documentTypeName = "\(collection.enumName)Document"
 
-        // Collection型（parentDocumentIdとgrandParentPathを持つ）
+        // The collection type, which carries both parentDocumentId and grandParentPath
         result.append("""
             public struct \(raw: collectionTypeName): FirestoreCollectionProtocol {
                 public typealias Model = \(raw: collection.modelType)
@@ -292,7 +300,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             }
             """)
 
-        // Document型
+        // The document type
         let subCollectionAccessors = collection.subCollections.map { sub in
             let accessorName = sub.enumName.lowercasedFirst()
             return """
@@ -334,7 +342,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
 
     // MARK: - Collection Parsing
 
-    /// コレクション構造を表すノード
+    /// One collection in the parsed schema tree, with its children attached.
     private struct CollectionNode {
         let enumName: String
         let collectionId: String
@@ -342,7 +350,8 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         var subCollections: [CollectionNode]
     }
 
-    /// structから再帰的にコレクション構造をパース
+    /// Reads the schema tree out of the struct's nested enums, skipping members that are not
+    /// enums carrying `@Collection`.
     private static func parseCollections(in structDecl: StructDeclSyntax) -> [CollectionNode] {
         var collections: [CollectionNode] = []
 
@@ -359,9 +368,12 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         return collections
     }
 
-    /// enumから再帰的にコレクションノードをパース
+    /// Builds a node from one enum and its nested enums.
+    ///
+    /// Returns `nil` when the enum has no usable `@Collection`, which also prunes everything
+    /// nested inside it.
     private static func parseCollectionEnum(_ enumDecl: EnumDeclSyntax) -> CollectionNode? {
-        // @Collectionアトリビュートを探す
+        // Look for the @Collection attribute
         var collectionId: String?
         var modelType: String?
 
@@ -382,7 +394,7 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
             return nil
         }
 
-        // サブコレクションを再帰的にパース
+        // Parse the sub-collections recursively
         var subCollections: [CollectionNode] = []
         for member in enumDecl.memberBlock.members {
             guard let nestedEnum = member.decl.as(EnumDeclSyntax.self) else {
@@ -402,7 +414,11 @@ public struct FirestoreSchemaMacro: MemberMacro, ExtensionMacro {
         )
     }
 
-    /// @Collection属性から引数を抽出
+    /// Pulls the collection ID and model type out of a `@Collection` attribute.
+    ///
+    /// Returns `nil` unless the ID is a plain string literal and the model is written as
+    /// `Type.self`, so an interpolated ID or a metatype expression is treated as no attribute
+    /// at all.
     private static func extractCollectionArguments(from attr: AttributeSyntax) -> (collectionId: String, modelType: String)? {
         guard let arguments = attr.arguments?.as(LabeledExprListSyntax.self) else {
             return nil

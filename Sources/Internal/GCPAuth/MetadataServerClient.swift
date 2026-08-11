@@ -2,10 +2,11 @@ import AsyncHTTPClient
 import Foundation
 import NIOCore
 
-/// Cloud Run メタデータサーバーからアクセストークンとプロジェクトIDを取得するクライアント
+/// Reads the access token and project ID from the GCP instance metadata server.
 ///
-/// Cloud Run 環境でのみ動作する。メタデータサーバーは
-/// `http://metadata.google.internal` でアクセス可能。
+/// Only works where that server exists, at `http://metadata.google.internal`, which in this
+/// package means Cloud Run. Both requests carry the `Metadata-Flavor: Google` header the server
+/// demands and give up after ten seconds.
 struct MetadataServerClient: Sendable {
     private let tokenURL =
         "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
@@ -17,9 +18,15 @@ struct MetadataServerClient: Sendable {
         self.httpClientProvider = httpClientProvider
     }
 
-    /// メタデータサーバーからアクセストークンを取得
-    /// - Returns: トークン情報（トークン文字列と有効期間）
-    /// - Throws: `GCPAuthError` 取得に失敗した場合
+    /// Fetches an access token for the instance's default service account.
+    ///
+    /// The token carries whatever scopes that service account was granted, so what it can reach
+    /// is decided by IAM rather than by anything here. The response body is read up to 1 MiB.
+    ///
+    /// - Returns: The token, and the seconds it stays valid as reported by the server.
+    /// - Throws: `GCPAuthError.metadataServerUnavailable` if the request itself fails,
+    ///   `.tokenFetchFailed` on any status other than 200, or `.tokenParseFailed` if
+    ///   `access_token` or `expires_in` is missing from the body.
     func fetchToken() async throws -> (token: String, expiresIn: Int) {
         var request = HTTPClientRequest(url: tokenURL)
         request.method = .GET
@@ -49,9 +56,12 @@ struct MetadataServerClient: Sendable {
         return (accessToken, expiresIn)
     }
 
-    /// メタデータサーバーからプロジェクトIDを取得
-    /// - Returns: プロジェクトID
-    /// - Throws: `GCPAuthError` 取得に失敗した場合
+    /// Fetches the ID of the project this instance runs in.
+    ///
+    /// The response is plain text rather than JSON, and is trimmed of surrounding whitespace.
+    ///
+    /// - Throws: `GCPAuthError.metadataServerUnavailable` if the request itself fails, or
+    ///   `.projectIdFetchFailed` on any status other than 200 or an empty body.
     func fetchProjectId() async throws -> String {
         var request = HTTPClientRequest(url: projectIdURL)
         request.method = .GET

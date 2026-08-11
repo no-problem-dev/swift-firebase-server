@@ -1,25 +1,25 @@
-/// Firestoreデータベースへのパス
+/// Identifies one Firestore database.
 ///
-/// REST APIのベースパスを構成する:
-/// `projects/{projectId}/databases/{databaseId}/documents`
+/// Every REST path in this package is built on top of it:
+/// `projects/{projectId}/databases/{databaseId}/documents`.
 public struct DatabasePath: Sendable, Hashable {
-    /// Google CloudプロジェクトID
     public let projectId: String
 
-    /// データベースID（通常は "(default)"）
+    /// The Firestore database ID, `"(default)"` unless the project uses a named database.
     public let databaseId: String
 
-    /// 初期化
     /// - Parameters:
-    ///   - projectId: Google CloudプロジェクトID
-    ///   - databaseId: データベースID（デフォルト: "(default)"）
+    ///   - projectId: The Google Cloud project ID.
+    ///   - databaseId: The Firestore database ID.
     public init(projectId: String, databaseId: String = "(default)") {
         self.projectId = projectId
         self.databaseId = databaseId
     }
 
-    /// REST APIのドキュメントルートパス
-    /// 例: `projects/my-project/databases/(default)/documents`
+    /// The REST resource name of the database's document root.
+    ///
+    /// For example: `projects/my-project/databases/(default)/documents`. The value is
+    /// interpolated into request URLs as-is, parentheses and all, without percent-encoding.
     public var documentsPath: String {
         "projects/\(projectId)/databases/\(databaseId)/documents"
     }

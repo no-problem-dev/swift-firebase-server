@@ -1,25 +1,27 @@
-/// ドキュメントへのパス
+/// A path that names a document: the thing that holds fields and can own subcollections.
 ///
-/// ドキュメントはフィールドを持つデータの実体であり、パスは偶数個のセグメントで構成される。
-/// ドキュメントはサブコレクションを持つことができる。
+/// A document path always has an even number of segments, at least two, because a document
+/// always sits inside a collection.
 ///
-/// 例:
+/// For example:
 /// - `users/abc123`
 /// - `users/abc123/books/xyz`
 /// - `users/abc123/books/xyz/chapters/ch1`
 public struct DocumentPath: Sendable, Hashable {
     public let segments: [PathSegment]
 
-    /// セグメント配列から初期化（内部用）
+    /// Creates a document path from segments, trapping if their count is odd or below two.
     internal init(segments: [PathSegment]) {
         precondition(segments.count >= 2 && segments.count % 2 == 0,
                      "Document path must have even number of segments (>= 2)")
         self.segments = segments
     }
 
-    /// 文字列パスから初期化
-    /// - Parameter path: スラッシュ区切りのパス文字列
-    /// - Throws: パスがドキュメントとして無効な場合
+    /// Parses a slash-separated path and checks that it names a document.
+    ///
+    /// - Parameter path: A path with an even number of segments, such as `users/abc123`.
+    /// - Throws: `PathError.emptyPath` if the string yields no segments, or
+    ///   `PathError.invalidDocumentPath` if the count is odd — that is, if it names a collection.
     public init(_ path: String) throws(PathError) {
         let resource = try ResourcePath(path)
         guard resource.isDocument else {
@@ -28,24 +30,27 @@ public struct DocumentPath: Sendable, Hashable {
         self.segments = resource.segments
     }
 
-    /// ドキュメントID（最後のセグメント）
+    /// The last segment of the path.
     public var documentId: String {
         segments.last!.id
     }
 
-    /// 親コレクションのパス
+    /// The collection this document belongs to, which always exists.
     public var parent: CollectionPath {
         CollectionPath(segments: Array(segments.dropLast()))
     }
 
-    /// このドキュメント配下のサブコレクションへのパスを生成
-    /// - Parameter collectionId: コレクションID
-    /// - Returns: コレクションパス
+    /// Returns the path of a subcollection under this document.
+    ///
+    /// The subcollection is a separate container: writing or deleting this document leaves the
+    /// documents inside it untouched.
+    ///
+    /// - Parameter collectionId: A single segment naming the subcollection.
     public func collection(_ collectionId: String) -> CollectionPath {
         CollectionPath(segments: segments + [.collection(collectionId)])
     }
 
-    /// 文字列表現
+    /// The segments joined with `/`, without the database prefix.
     public var rawValue: String {
         segments.map(\.id).joined(separator: "/")
     }

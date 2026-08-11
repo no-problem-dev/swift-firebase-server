@@ -1,5 +1,7 @@
-// EventarcServer モジュールの公開API
+// Public API of the EventarcServer module.
 //
-// このモジュールはGoogle Cloud Eventarcからのイベント受信に必要な型を提供する。
+// This module provides the types needed to receive Google Cloud Eventarc deliveries:
+// the CloudEvents headers, the Firebase Auth and Cloud Audit Logs payloads, and the
+// protobuf decoder for Firestore document events.
 
-// 再エクスポートは不要 - すべての型がこのモジュールで定義されている
+// No re-export is needed - every type is declared in this module.

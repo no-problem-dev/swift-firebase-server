@@ -3,25 +3,23 @@ import SwiftSyntaxMacros
 
 // MARK: - FieldMacro
 
-/// `@Field("key")`マクロの実装
+/// The expansion behind `@Field("key")`.
 ///
-/// プロパティに付与し、カスタムのFirestoreキー名を指定する。
-/// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// `CodingKeys` を生成する。
+/// It generates nothing. Its whole job is to validate the attribute and leave it on the
+/// property for `@FirestoreModel` to read when building `CodingKeys` and `Fields`.
 public struct FieldMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // このマクロは単なるマーカーとして機能
-        // 実際のCodingKeys生成は@FirestoreModelが行う
-        // プロパティ宣言であることを確認
+        // The attribute is only a marker; @FirestoreModel does the CodingKeys work
+        // Reject anything that is not a property
         guard declaration.as(VariableDeclSyntax.self) != nil else {
             throw MacroError.invalidArgument("@Field can only be applied to properties")
         }
 
-        // 引数の検証
+        // The key has to be a string literal so it can be read at expansion time
         guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
               let firstArg = arguments.first,
               firstArg.expression.as(StringLiteralExprSyntax.self) != nil
@@ -29,11 +27,15 @@ public struct FieldMacro: PeerMacro {
             throw MacroError.invalidArgument("@Field requires a string literal key")
         }
 
-        // コード生成なし（マーカーのみ）
+        // Nothing to emit
         return []
     }
 
-    /// 属性からカスタムキー名を抽出
+    /// Reads the custom key out of the attribute.
+    ///
+    /// Returns `nil` when the first argument is not a plain string literal — an interpolated
+    /// one has no single segment to read — and also for `@Field(strategy:)`, which is how
+    /// `@FirestoreModel` tells the two spellings apart.
     static func extractKey(from attribute: AttributeSyntax) -> String? {
         guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
               let firstArg = arguments.first,
@@ -48,23 +50,22 @@ public struct FieldMacro: PeerMacro {
 
 // MARK: - FieldStrategyMacro
 
-/// `@Field(strategy: .snakeCase)`マクロの実装
+/// The expansion behind `@Field(strategy: .snakeCase)`.
 ///
-/// プロパティに付与し、フィールドのキー変換戦略を指定する。
-/// 実際のコード生成は行わず、`@FirestoreModel`マクロがこの属性を読み取って
-/// `CodingKeys` を生成する。
+/// Like `FieldMacro` it generates nothing and exists to validate the attribute that
+/// `@FirestoreModel` reads when resolving the key for that one property.
 public struct FieldStrategyMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // プロパティ宣言であることを確認
+        // Reject anything that is not a property
         guard declaration.as(VariableDeclSyntax.self) != nil else {
             throw MacroError.invalidArgument("@Field(strategy:) can only be applied to properties")
         }
 
-        // 引数の検証
+        // The first argument has to carry the strategy label
         guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
               let firstArg = arguments.first,
               firstArg.label?.text == "strategy"
@@ -72,11 +73,14 @@ public struct FieldStrategyMacro: PeerMacro {
             throw MacroError.invalidArgument("@Field(strategy:) requires a strategy argument")
         }
 
-        // コード生成なし（マーカーのみ）
+        // Nothing to emit
         return []
     }
 
-    /// 属性から戦略を抽出
+    /// Reads the strategy's case name out of the attribute.
+    ///
+    /// Returns the bare name, such as `snakeCase`, which the caller matches against
+    /// `KeyStrategy`'s raw values; `nil` means the attribute was the `@Field("key")` spelling.
     static func extractStrategy(from attribute: AttributeSyntax) -> String? {
         guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
               let firstArg = arguments.first,

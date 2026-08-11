@@ -2,15 +2,16 @@ import Foundation
 
 // MARK: - Query Filter Protocol
 
-/// クエリフィルターを表すプロトコル
+/// A clause of a Firestore `structuredQuery.where`.
 public protocol QueryFilterProtocol: Sendable, Hashable {
-    /// REST API用のJSONに変換
+    /// Renders the clause as a REST `Filter` object, keyed by `fieldFilter`, `unaryFilter`, or
+    /// `compositeFilter`.
     func toJSON() -> [String: Any]
 }
 
 // MARK: - Field Filter Operator
 
-/// フィールドフィルターの比較演算子
+/// Comparison operators of a Firestore `fieldFilter`, whose raw values are the REST enum names.
 public enum FieldFilterOperator: String, Sendable, Hashable {
     case lessThan = "LESS_THAN"
     case lessThanOrEqual = "LESS_THAN_OR_EQUAL"
@@ -26,7 +27,7 @@ public enum FieldFilterOperator: String, Sendable, Hashable {
 
 // MARK: - Unary Filter Operator
 
-/// 単項フィルターの演算子
+/// Operators of a Firestore `unaryFilter`, which tests a field without an operand.
 public enum UnaryFilterOperator: String, Sendable, Hashable {
     case isNaN = "IS_NAN"
     case isNull = "IS_NULL"
@@ -36,7 +37,7 @@ public enum UnaryFilterOperator: String, Sendable, Hashable {
 
 // MARK: - Composite Filter Operator
 
-/// 複合フィルターの演算子
+/// Operators of a Firestore `compositeFilter`.
 public enum CompositeFilterOperator: String, Sendable, Hashable {
     case and = "AND"
     case or = "OR"
@@ -44,7 +45,10 @@ public enum CompositeFilterOperator: String, Sendable, Hashable {
 
 // MARK: - Field Filter
 
-/// フィールド値に対するフィルター
+/// A comparison between one field and one value.
+///
+/// For `in`, `not-in`, and `array-contains-any` the operand is a single `arrayValue` holding
+/// every candidate; Firestore counts each element as a disjunction and caps the list.
 public struct FieldFilter: QueryFilterProtocol {
     public let field: FieldReference
     public let op: FieldFilterOperator
@@ -75,7 +79,7 @@ public struct FieldFilter: QueryFilterProtocol {
 
 // MARK: - Unary Filter
 
-/// 単項フィルター（null/nan判定）
+/// A test on a field that takes no operand, for null and NaN.
 public struct UnaryFilter: QueryFilterProtocol {
     public let field: FieldReference
     public let op: UnaryFilterOperator
@@ -102,7 +106,14 @@ public struct UnaryFilter: QueryFilterProtocol {
 
 // MARK: - Composite Filter
 
-/// 複数フィルターの複合（AND/OR）
+/// A group of filters combined with AND or OR.
+///
+/// Groups nest, and Firestore evaluates the tree in disjunctive normal form, rejecting a query
+/// whose expansion exceeds 30 disjunctions.
+///
+/// Equality and hashing both go through the rendered REST JSON, so two groups are equal only
+/// when they hold the same clauses in the same order, and a clause that JSON cannot represent
+/// — a filter comparing against a NaN or infinite double — contributes nothing to the hash.
 public struct CompositeFilter: QueryFilterProtocol {
     public let op: CompositeFilterOperator
     public let filters: [any QueryFilterProtocol]
@@ -155,7 +166,13 @@ public struct CompositeFilter: QueryFilterProtocol {
 
 // MARK: - Query Filter (Type-Erased Wrapper)
 
-/// 任意のフィルターを包むラッパー型
+/// A type-erased wrapper that lets any filter be stored or passed as a single concrete type.
+///
+/// Two wrappers are equal when their rendered REST JSON matches, so a wrapped filter can equal
+/// a differently built filter that serializes identically. The hash, however, is copied from
+/// the wrapped value's own `hashValue` at construction time, so equal wrappers built from
+/// different concrete types can hash differently — do not rely on wrappers as `Set` members or
+/// dictionary keys across mixed filter types.
 public struct QueryFilter: QueryFilterProtocol {
     private let _toJSON: @Sendable () -> [String: Any]
     private let _hashValue: Int
@@ -187,74 +204,83 @@ public struct QueryFilter: QueryFilterProtocol {
 // MARK: - Convenience Filter Builders
 
 public extension FieldFilter {
-    /// フィールドが値と等しい
+    /// Builds an `EQUAL` filter.
     static func isEqualTo(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .equal, value)
     }
 
-    /// フィールドが値と等しくない
+    /// Builds a `NOT_EQUAL` filter, which never matches a document that lacks the field.
     static func isNotEqualTo(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .notEqual, value)
     }
 
-    /// フィールドが値より小さい
+    /// Builds a `LESS_THAN` filter, whose field must also be the query's first sort key.
     static func isLessThan(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .lessThan, value)
     }
 
-    /// フィールドが値以下
+    /// Builds a `LESS_THAN_OR_EQUAL` filter, whose field must also be the query's first sort key.
     static func isLessThanOrEqual(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .lessThanOrEqual, value)
     }
 
-    /// フィールドが値より大きい
+    /// Builds a `GREATER_THAN` filter, whose field must also be the query's first sort key.
     static func isGreaterThan(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .greaterThan, value)
     }
 
-    /// フィールドが値以上
+    /// Builds a `GREATER_THAN_OR_EQUAL` filter, whose field must also be the query's first sort key.
     static func isGreaterThanOrEqual(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .greaterThanOrEqual, value)
     }
 
-    /// 配列フィールドが値を含む
+    /// Builds an `ARRAY_CONTAINS` filter, of which Firestore allows one per query.
     static func arrayContains(_ fieldPath: String, _ value: FirestoreValue) -> FieldFilter {
         FieldFilter(fieldPath, .arrayContains, value)
     }
 
-    /// フィールドが配列内のいずれかの値と等しい
+    /// Builds an `IN` filter, wrapping the candidates in a single `arrayValue`.
+    ///
+    /// Firestore caps the list at 30 values and counts each one against the query's
+    /// 30-disjunction budget; nothing here checks the count.
     static func isIn(_ fieldPath: String, _ values: [FirestoreValue]) -> FieldFilter {
         FieldFilter(fieldPath, .in, .array(values))
     }
 
-    /// 配列フィールドが配列内のいずれかの値を含む
+    /// Builds an `ARRAY_CONTAINS_ANY` filter, wrapping the candidates in a single `arrayValue`.
+    ///
+    /// Firestore caps the list at 30 values, allows one such clause per query, and refuses to
+    /// combine it with `ARRAY_CONTAINS`.
     static func arrayContainsAny(_ fieldPath: String, _ values: [FirestoreValue]) -> FieldFilter {
         FieldFilter(fieldPath, .arrayContainsAny, .array(values))
     }
 
-    /// フィールドが配列内のいずれの値とも等しくない
+    /// Builds a `NOT_IN` filter, wrapping the candidates in a single `arrayValue`.
+    ///
+    /// Firestore caps the list, drops documents that lack the field, and refuses to combine
+    /// `NOT_IN` with `IN`, `ARRAY_CONTAINS_ANY`, or `NOT_EQUAL`.
     static func isNotIn(_ fieldPath: String, _ values: [FirestoreValue]) -> FieldFilter {
         FieldFilter(fieldPath, .notIn, .array(values))
     }
 }
 
 public extension UnaryFilter {
-    /// フィールドがnull
+    /// Builds an `IS_NULL` filter, which does not match documents that omit the field.
     static func isNull(_ fieldPath: String) -> UnaryFilter {
         UnaryFilter(fieldPath, .isNull)
     }
 
-    /// フィールドがnullでない
+    /// Builds an `IS_NOT_NULL` filter, which matches only documents that carry the field.
     static func isNotNull(_ fieldPath: String) -> UnaryFilter {
         UnaryFilter(fieldPath, .isNotNull)
     }
 
-    /// フィールドがNaN
+    /// Builds an `IS_NAN` filter, the only way to match the double NaN.
     static func isNaN(_ fieldPath: String) -> UnaryFilter {
         UnaryFilter(fieldPath, .isNaN)
     }
 
-    /// フィールドがNaNでない
+    /// Builds an `IS_NOT_NAN` filter, which matches only documents that carry the field.
     static func isNotNaN(_ fieldPath: String) -> UnaryFilter {
         UnaryFilter(fieldPath, .isNotNaN)
     }

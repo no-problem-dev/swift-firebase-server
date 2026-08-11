@@ -1,35 +1,37 @@
 // MARK: - Model Protocol
 
-/// Firestoreドキュメントモデルを表すマーカープロトコル
+/// A marker for the model type a Firestore collection stores.
 ///
-/// `@FirestoreModel`マクロを適用した構造体は自動的にこのプロトコルに準拠する。
-/// `@Collection`マクロの`model:`パラメータにはこのプロトコルに準拠した型のみ指定できる。
+/// A struct annotated with `@FirestoreModel` conforms automatically. `@Collection` accepts only
+/// conforming types for `model:`, so handing it a plain `Codable` struct is a compile error —
+/// that is the whole point of the marker.
 ///
-/// このプロトコルは`Codable`と`Sendable`を継承しないマーカープロトコル。
-/// `@FirestoreModel`マクロが`Codable`と`Sendable`を別途付与する。
+/// The protocol refines `Sendable`, so conforming types are `Sendable` too. `@FirestoreModel`
+/// adds `Codable` in the same generated extension, which is what keeps the compiler's
+/// `Codable` synthesis available.
 ///
 /// ```swift
-/// @FirestoreModel  // 自動的にFirestoreModelProtocol, Codable, Sendableに準拠
+/// @FirestoreModel  // conforms to FirestoreModelProtocol and Codable automatically
 /// struct User {
 ///     let id: String
 ///     let name: String
 /// }
 ///
-/// @Collection("users", model: User.self)  // OK: UserはFirestoreModelProtocolに準拠
+/// @Collection("users", model: User.self)  // OK: User conforms to FirestoreModelProtocol
 /// enum Users {}
 ///
 /// struct PlainStruct: Codable, Sendable { let id: String }
-/// @Collection("items", model: PlainStruct.self)  // コンパイルエラー: FirestoreModelProtocolに準拠していない
+/// @Collection("items", model: PlainStruct.self)  // compile error: does not conform to FirestoreModelProtocol
 /// enum Items {}
 /// ```
 public protocol FirestoreModelProtocol: Sendable {}
 
 // MARK: - Key Strategy
 
-/// Firestoreフィールドのキー変換戦略
+/// How a Swift property name is turned into a Firestore field name.
 ///
-/// `@FirestoreModel`や`@Field`マクロで使用し、
-/// Swiftプロパティ名とFirestoreフィールド名の変換方法を指定する。
+/// Passed to `@FirestoreModel` for a whole model, or to `@Field(strategy:)` for one property.
+/// The macro resolves the strategy at compile time and bakes the result into `CodingKeys`.
 ///
 /// ```swift
 /// @FirestoreModel(keyStrategy: .snakeCase)
@@ -39,18 +41,16 @@ public protocol FirestoreModelProtocol: Sendable {}
 /// }
 /// ```
 public enum FirestoreKeyStrategy: Sendable {
-    /// デフォルト（変換なし）
+    /// Keeps the property name as the field name.
     ///
-    /// プロパティ名をそのままフィールド名として使用する。
-    /// FirestoreConfiguration のキー戦略はランタイムで適用される。
+    /// Nothing is rewritten at compile time, so the key strategy configured on the client's
+    /// `FirestoreConfiguration` is what decides the stored field name at encode and decode time.
     case useDefault
 
-    /// camelCase → snake_case 変換
+    /// Converts camelCase property names to snake_case field names.
     ///
-    /// Swiftの標準的な命名規則（camelCase）から
-    /// snake_case に変換する。
-    ///
-    /// 例:
+    /// The converted name is written into `CodingKeys`, and the client's key encoding strategy
+    /// then runs on top of it when writing. For example:
     /// - `userId` → `user_id`
     /// - `createdAt` → `created_at`
     /// - `isActive` → `is_active`
@@ -59,10 +59,18 @@ public enum FirestoreKeyStrategy: Sendable {
 
 // MARK: - Model Macros
 
-/// Firestoreドキュメントモデルを定義するマクロ
+/// Generates the Firestore field mapping for a document model.
 ///
-/// このマクロを構造体に適用すると、`CodingKeys`を自動生成し、
-/// `Codable`と`Sendable`への準拠を付与する。
+/// Applied to a struct, the macro generates a `Fields` enum of `FieldPath` constants for
+/// type-safe queries, and adds conformance to `FirestoreModelProtocol` and `Codable` in one
+/// extension. It generates `CodingKeys` only when at least one stored property needs a key
+/// other than its own name — a `@Field("key")`, a `.snakeCase` strategy, or a `@FieldIgnore`.
+/// Applying it to anything other than a struct fails with
+/// "@FirestoreModel can only be applied to struct declarations".
+///
+/// Per property, the key comes from the first of these that is present: `@Field("key")`, then
+/// `@Field(strategy:)`, then this `keyStrategy:`. Whatever the macro settles on is still passed
+/// through the key encoding strategy of the client's `FirestoreConfiguration` when writing.
 ///
 /// ```swift
 /// @FirestoreModel(keyStrategy: .snakeCase)
@@ -70,25 +78,31 @@ public enum FirestoreKeyStrategy: Sendable {
 ///     let userId: String        // → user_id
 ///     let displayName: String   // → display_name
 ///
-///     @Field("uid")             // カスタムキー
+///     @Field("uid")             // custom key
 ///     let uniqueId: String      // → uid
 ///
-///     @FieldIgnore              // Firestoreに保存しない
+///     @FieldIgnore              // not stored in Firestore
 ///     var localCache: String?
 /// }
 /// ```
 ///
-/// - Parameter keyStrategy: デフォルトのキー変換戦略。省略時は`.useDefault`
+/// - Parameter keyStrategy: The conversion applied to properties that carry no `@Field` of their own.
+///
+/// - Note: Only stored properties are mapped, and `CodingKeys` and `Fields` are generated
+///   without an access modifier, so they stay internal even on a public model.
 @attached(member, names: named(CodingKeys), named(Fields))
 @attached(extension, conformances: FirestoreModelProtocol, Codable, Sendable)
 public macro FirestoreModel(
     keyStrategy: FirestoreKeyStrategy = .useDefault
 ) = #externalMacro(module: "FirestoreMacros", type: "FirestoreModelMacro")
 
-/// フィールドにカスタムキー名を指定するマクロ
+/// Names the Firestore field for one property explicitly.
 ///
-/// `@FirestoreModel`内のプロパティに適用し、
-/// Firestore でのフィールド名を明示的に指定する。
+/// Apply it to a property of a `@FirestoreModel` struct. The key wins over both
+/// `@Field(strategy:)` and the model's `keyStrategy:`. The macro emits no code of its own —
+/// `@FirestoreModel` reads the attribute and writes the key into `CodingKeys` and `Fields`.
+/// Applying it to something that is not a property, or passing anything but a string literal,
+/// fails with an "Invalid argument" diagnostic.
 ///
 /// ```swift
 /// @FirestoreModel
@@ -98,35 +112,36 @@ public macro FirestoreModel(
 /// }
 /// ```
 ///
-/// - Parameter key: Firestoreでのフィールド名
+/// - Parameter key: The field name to use in Firestore.
 @attached(peer)
 public macro Field(_ key: String) = #externalMacro(module: "FirestoreMacros", type: "FieldMacro")
 
-/// フィールドにキー変換戦略を指定するマクロ
+/// Applies a key conversion to one property only.
 ///
-/// `@FirestoreModel`内のプロパティに適用し、
-/// そのフィールドのみに特定の変換戦略を適用する。
+/// Overrides the model's `keyStrategy:` for that property, and is in turn overridden by
+/// `@Field("key")` on the same property. Like `@Field(_:)` it emits no code; `@FirestoreModel`
+/// reads it. Applying it to something that is not a property, or omitting the `strategy:`
+/// label, fails with an "Invalid argument" diagnostic.
 ///
 /// ```swift
-/// @FirestoreModel  // デフォルトは useDefault
+/// @FirestoreModel  // the model default is useDefault
 /// struct User {
 ///     @Field(strategy: .snakeCase)
-///     let displayName: String  // → display_name（このフィールドのみsnake_case）
+///     let displayName: String  // → display_name (this property only)
 ///
-///     let normalField: String  // → normalField（変換なし）
+///     let normalField: String  // → normalField (unconverted)
 /// }
 /// ```
 ///
-/// - Parameter strategy: このフィールドに適用するキー変換戦略
+/// - Parameter strategy: The conversion to apply to this property.
 @attached(peer)
 public macro Field(strategy: FirestoreKeyStrategy) = #externalMacro(module: "FirestoreMacros", type: "FieldStrategyMacro")
 
-/// フィールドをFirestoreエンコード/デコードから除外するマクロ
+/// Keeps a property out of the Firestore mapping.
 ///
-/// `@FirestoreModel`内のプロパティに適用し、
-/// そのフィールドを `CodingKeys` から除外する。
-/// ローカルキャッシュや計算プロパティ用のバッキングストアなど、
-/// Firestoreに保存しないフィールドに使用する。
+/// The property is left out of both the generated `CodingKeys` and `Fields`, so it is neither
+/// encoded nor decoded nor usable in a query. Use it for local caches and backing stores.
+/// Its presence alone is enough to make `@FirestoreModel` generate `CodingKeys`.
 ///
 /// ```swift
 /// @FirestoreModel
@@ -135,21 +150,26 @@ public macro Field(strategy: FirestoreKeyStrategy) = #externalMacro(module: "Fir
 ///     let data: String
 ///
 ///     @FieldIgnore
-///     var localTimestamp: Date?  // Firestoreに保存しない
+///     var localTimestamp: Date?  // not stored in Firestore
 /// }
 /// ```
 ///
-/// **注意**: `@FieldIgnore`を適用したプロパティにはデフォルト値が必要。
+/// - Important: The property needs a default value or an optional type. Because it has no
+///   `CodingKeys` case, the synthesized `init(from:)` has nothing to initialize it with.
 @attached(peer)
 public macro FieldIgnore() = #externalMacro(module: "FirestoreMacros", type: "FieldIgnoreMacro")
 
 // MARK: - Schema Macros
 
-/// Firestoreスキーマを定義するマクロ
+/// Turns a struct of `@Collection` enums into typed Firestore accessors.
 ///
-/// structに適用し、型安全なFirestoreアクセスを自動生成する。
-/// `client`、`database`プロパティと`init(client:)`イニシャライザが生成され、
-/// 各`@Collection`に対応する型付きコレクションプロパティも追加される。
+/// The macro generates a `client` property, a `database` property forwarded from the client,
+/// an `init(client:)`, conformance to `FirestoreSchemaProtocol`, and one property per top-level
+/// `@Collection` enum. A collection with no sub-collections becomes a
+/// `FirestoreCollection<Model>`; a collection that has sub-collections gets a dedicated
+/// collection and document type so the sub-collections are reachable from a document.
+/// Applying it to anything other than a struct fails with
+/// "@FirestoreSchema can only be applied to structs".
 ///
 /// ```swift
 /// @FirestoreSchema
@@ -161,19 +181,27 @@ public macro FieldIgnore() = #externalMacro(module: "FirestoreMacros", type: "Fi
 ///     enum Genres {}
 /// }
 ///
-/// // 使用例
+/// // usage
 /// let schema = Schema(client: firestoreClient)
-/// let user = try await schema.users.document("user123").get()  // User型が推論される
-/// let genres = try await schema.genres.getAll()  // [Genre]型が推論される
+/// let user = try await schema.users.document("user123").get()  // inferred as User
+/// let (genres, nextPage) = try await schema.genres.getAll()  // genres is [Genre]
 /// ```
+///
+/// - Note: Typed accessors are generated three collection levels deep. At the third level the
+///   accessor is a plain `FirestoreCollection`, whose documents expose no sub-collections of
+///   their own, so a fourth level has to be addressed through the client directly.
 @attached(member, names: named(client), named(database), named(init), arbitrary)
 @attached(extension, conformances: FirestoreSchemaProtocol)
 public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type: "FirestoreSchemaMacro")
 
-/// Firestoreコレクションを定義するマクロ
+/// Declares a Firestore collection on an enum inside a `@FirestoreSchema` struct.
 ///
-/// `@FirestoreSchema` struct内のenumに適用し、コレクションパスとモデル型を自動生成する。
-/// ネストされている場合は自動的にサブコレクションとして扱われる。
+/// The macro generates `collectionId`, `typealias Model`, and the path builders. A top-level
+/// enum gets `collectionPath` and `documentPath(_:)`. An enum nested inside another
+/// `@Collection` enum is treated as a sub-collection: its path builders take one document ID
+/// per ancestor, outermost first. Applying it to anything other than an enum fails with
+/// "@Collection can only be applied to enums", and leaving out either argument fails with
+/// "@Collection requires collectionId and model arguments".
 ///
 /// ```swift
 /// @FirestoreSchema
@@ -188,20 +216,22 @@ public macro FirestoreSchema() = #externalMacro(module: "FirestoreMacros", type:
 ///     }
 /// }
 ///
-/// // 静的パス生成
+/// // static path building
 /// Schema.Users.collectionPath                              // "users"
 /// Schema.Users.documentPath("userId")                      // "users/userId"
 /// Schema.Users.Model.self                                  // User.Type
 /// Schema.Users.Books.collectionPath("userId")              // "users/userId/books"
 /// Schema.Users.Books.Model.self                            // Book.Type
 ///
-/// // インスタンス経由のアクセス
+/// // access through a schema instance
 /// let schema = Schema(client: client)
-/// let user = try await schema.users.document("userId").get()  // User型が推論される
+/// let user = try await schema.users.document("userId").get()  // inferred as User
 /// ```
 ///
-/// - Parameter collectionId: Firestoreのコレクション名
-/// - Parameter model: このコレクションに格納されるモデルの型（`FirestoreModelProtocol` 準拠が必要）
+/// - Parameters:
+///   - collectionId: The collection name in Firestore.
+///   - model: The document type stored in the collection. It must conform to
+///     `FirestoreModelProtocol`, which `@FirestoreModel` provides.
 @attached(member, names: named(collectionId), named(collectionPath), named(documentPath), named(Model), arbitrary)
 public macro Collection<T: FirestoreModelProtocol>(_ collectionId: String, model: T.Type) = #externalMacro(module: "FirestoreMacros", type: "CollectionMacro")
 

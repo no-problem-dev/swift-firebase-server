@@ -1,49 +1,48 @@
-/// コレクションへの参照
+/// A pointer to the location of a collection, in a specific database.
 ///
-/// コレクション参照は軽量なオブジェクトで、特定のコレクションの位置を指す。
-/// 実際のデータ操作は`FirestoreClient`を通じて行う。
+/// Building one costs nothing and touches no network: it names a place, and the collection it
+/// names need not exist. Reads and writes go through the client that produced it.
 ///
-/// 使用例:
 /// ```swift
 /// let usersRef = firestore.collection("users")
 /// let booksRef = usersRef.document("abc").collection("books")
 /// ```
 public struct CollectionReference: Sendable, Hashable {
-    /// データベースパス
     public let database: DatabasePath
 
-    /// コレクションへの論理パス
+    /// The path within the database, with no `projects/…/documents` prefix.
     public let path: CollectionPath
 
-    /// 初期化
     public init(database: DatabasePath, path: CollectionPath) {
         self.database = database
         self.path = path
     }
 
-    /// コレクションID
     public var collectionId: String {
         path.collectionId
     }
 
-    /// 親ドキュメントへの参照（ルートコレクションの場合はnil）
+    /// The document this collection hangs off, or `nil` for a root collection.
     public var parent: DocumentReference? {
         guard let parentPath = path.parent else { return nil }
         return DocumentReference(database: database, path: parentPath)
     }
 
-    /// このコレクション内のドキュメントへの参照を生成
-    /// - Parameter documentId: ドキュメントID
-    /// - Returns: ドキュメント参照
+    /// Returns a reference to a document in this collection.
+    ///
+    /// - Parameter documentId: A single segment naming the document.
     public func document(_ documentId: String) -> DocumentReference {
         DocumentReference(database: database, path: path.document(documentId))
     }
 
-    // MARK: - REST API用パス生成
+    // MARK: - REST API Paths
 
-    /// REST API: parent パラメータ
-    /// 例: `projects/my-project/databases/(default)/documents` または
-    ///     `projects/my-project/databases/(default)/documents/users/abc`
+    /// The `parent` the REST API expects for `createDocument`, `listDocuments`, and `runQuery`.
+    ///
+    /// It names the document that owns the collection, or the database's document root when this
+    /// is a root collection. For example:
+    /// `projects/my-project/databases/(default)/documents` or
+    /// `projects/my-project/databases/(default)/documents/users/abc`.
     public var restParent: String {
         if let parentPath = path.parent {
             return "\(database.documentsPath)/\(parentPath.rawValue)"
@@ -52,13 +51,14 @@ public struct CollectionReference: Sendable, Hashable {
         }
     }
 
-    /// REST API: collectionId パラメータ
+    /// The `collectionId` the REST API expects alongside `restParent`.
     public var restCollectionId: String {
         collectionId
     }
 
-    /// REST API: 完全なコレクションパス
-    /// 例: `projects/my-project/databases/(default)/documents/users`
+    /// The collection's full REST resource name.
+    ///
+    /// For example: `projects/my-project/databases/(default)/documents/users`.
     public var restPath: String {
         "\(database.documentsPath)/\(path.rawValue)"
     }
@@ -73,9 +73,11 @@ extension CollectionReference: CustomStringConvertible {
 // MARK: - Query Builder
 
 extension CollectionReference {
-    /// このコレクションに対するクエリを開始
-    /// - Parameter type: 結果のデコード型
-    /// - Returns: クエリビルダー
+    /// Starts a query over this collection.
+    ///
+    /// The returned builder is inert until it is handed to a client to run.
+    ///
+    /// - Parameter type: The type each matching document is decoded into.
     public func query<T: Decodable & Sendable>(as type: T.Type) -> Query<T> {
         Query(collection: self)
     }
