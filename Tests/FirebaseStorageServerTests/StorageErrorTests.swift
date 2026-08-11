@@ -41,27 +41,9 @@ struct StorageErrorTests {
         #expect(description.contains("Permission denied"))
     }
 
-    @Test("File too large error")
-    func fileTooLargeError() {
-        let error = StorageError.fileTooLarge(size: 15_000_000, maxSize: 10_000_000)
-
-        let description = error.description
-        #expect(description.contains("too large"))
-        #expect(description.contains("15000000"))
-    }
-
-    @Test("Invalid content type error")
-    func invalidContentTypeError() {
-        let error = StorageError.invalidContentType(contentType: "application/pdf")
-
-        let description = error.description
-        #expect(description.contains("Invalid content type"))
-        #expect(description.contains("application/pdf"))
-    }
-
     @Test("Invalid path error")
     func invalidPathError() {
-        let error = StorageError.invalidPath(path: "../etc/passwd")
+        let error = StorageError.invalidPath(path: "")
 
         let description = error.description
         #expect(description.contains("Invalid storage path"))

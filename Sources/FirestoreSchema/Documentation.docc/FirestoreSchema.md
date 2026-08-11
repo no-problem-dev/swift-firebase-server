@@ -84,13 +84,14 @@ let schema = Schema(client: client)
 let user = try await schema.users.document("user123").get()
 
 try await schema.users.document("user123").create(data: newUser)
-try await schema.users.document("user123").update(data: editedUser)
+try await schema.users.document("user123").set(data: editedUser)
 try await schema.users.document("user123").delete()
 ```
 
-`update(data:)` sends the whole encoded model as a `PATCH`, so a field you leave out of the value
-is written as it stands in that value — this replaces the document's fields rather than merging a
-subset into them.
+`set(data:)` sends the encoded model as a `PATCH` with no update mask, so it becomes the document's
+complete set of fields: anything the model leaves out is dropped, and a document that is not there
+is created. `update(data:)` sends the same fields with an update mask naming them, so a field the
+model does not describe survives, and it asserts the document exists rather than creating one.
 
 ### Subcollections
 

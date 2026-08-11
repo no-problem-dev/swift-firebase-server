@@ -600,4 +600,88 @@ final class FirestoreModelMacrosTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    // MARK: - Computed and Type-Level Properties
+
+    func testShorthandGetterIsNotAField() throws {
+        #if canImport(FirestoreMacros)
+        assertMacroExpansion(
+            """
+            @FirestoreModel(keyStrategy: .snakeCase)
+            struct Item {
+                let itemName: String
+                var shortcut: Int { 1 }
+            }
+            """,
+            expandedSource: """
+            struct Item {
+                let itemName: String
+                var shortcut: Int { 1 }
+
+                enum CodingKeys: String, CodingKey {
+                    case itemName = "item_name"
+                }
+
+                enum Fields {
+                    static let itemName = FieldPath<Item>("item_name")
+                }
+            }
+
+            extension Item: FirestoreModelProtocol, Codable {
+            }
+            """,
+            macros: modelMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testGetterAndObserverAndTypeLevelProperties() throws {
+        #if canImport(FirestoreMacros)
+        assertMacroExpansion(
+            """
+            @FirestoreModel(keyStrategy: .snakeCase)
+            struct Item {
+                let itemName: String
+                var observedCount: Int {
+                    didSet { print(observedCount) }
+                }
+                var explicitGetter: String {
+                    get { itemName }
+                }
+                static let collectionName = "items"
+            }
+            """,
+            expandedSource: """
+            struct Item {
+                let itemName: String
+                var observedCount: Int {
+                    didSet { print(observedCount) }
+                }
+                var explicitGetter: String {
+                    get { itemName }
+                }
+                static let collectionName = "items"
+
+                enum CodingKeys: String, CodingKey {
+                    case itemName = "item_name"
+                    case observedCount = "observed_count"
+                }
+
+                enum Fields {
+                    static let itemName = FieldPath<Item>("item_name")
+                    static let observedCount = FieldPath<Item>("observed_count")
+                }
+            }
+
+            extension Item: FirestoreModelProtocol, Codable {
+            }
+            """,
+            macros: modelMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }

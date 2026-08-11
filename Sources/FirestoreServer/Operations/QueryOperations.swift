@@ -10,12 +10,12 @@ extension FirestoreClient {
     /// Runs a query and decodes every matching document.
     ///
     /// No match returns an empty array; it is not an error. Every returned document must decode,
-    /// so one document that does not fit the type fails the whole call — narrow the query or
-    /// use `runQueryRaw(_:)` when a collection holds mixed shapes.
+    /// so one document that does not fit the type fails the whole call with
+    /// `FirestoreError.decoding` — narrow the query or use `runQueryRaw(_:)` when a collection
+    /// holds mixed shapes.
     public func runQuery<T: Decodable & Sendable>(_ query: Query<T>) async throws -> [T] {
         let documents = try await runQueryRaw(query)
-        let decoder = FirestoreDecoder(keyDecodingStrategy: configuration.keyDecodingStrategy)
-        return try documents.map { try decoder.decode(T.self, from: $0) }
+        return try documents.map { try decode(T.self, from: $0) }
     }
 
     /// Runs a query and returns the matching documents undecoded.

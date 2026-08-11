@@ -102,9 +102,8 @@ public final class StorageClient: Sendable {
     /// travels in one request and is held in memory; there is no multipart or resumable path and
     /// no size threshold that switches to one, so large payloads restart from zero on failure.
     ///
-    /// `path` is percent-encoded with `.urlPathAllowed`, which keeps `/` literal so it reads as a
-    /// folder separator. That character set also leaves `&` and `+` unescaped, so an object name
-    /// containing either lands in the request differently from what you passed.
+    /// `path` is percent-encoded in full before it goes into the `name` query value, so an object
+    /// name holding `/`, `&`, `+`, or a space arrives as the name you passed.
     /// - Parameters:
     ///   - data: The bytes to store as the object's content.
     ///   - path: The object name inside the bucket, for example `"images/user123.jpg"`.
@@ -118,8 +117,8 @@ public final class StorageClient: Sendable {
         path: String,
         contentType: String
     ) async throws -> StorageObject {
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let url = "\(configuration.uploadBaseURL)/b/\(configuration.bucket)/o?uploadType=media&name=\(encodedPath)"
+        try Self.validateObjectPath(path)
+        let url = configuration.uploadURL(for: path)
 
         var request = HTTPClientRequest(url: url)
         request.method = .POST
@@ -162,15 +161,15 @@ public final class StorageClient: Sendable {
     /// memory. The client is bounded at 100 MB per object — not by any Cloud Storage limit, but by
     /// this buffer — so there is no streaming or ranged read.
     ///
-    /// `path` is percent-encoded with `.urlPathAllowed`, which leaves `/` unescaped rather than
-    /// turning it into `%2F`.
+    /// `path` is percent-encoded in full, so a nested name such as `images/a.jpg` addresses the
+    /// object resource as the single path segment `images%2Fa.jpg` that the JSON API expects.
     /// - Parameter path: The object name inside the bucket.
     /// - Throws: `StorageError.notFound` when no such object exists (the API answers 404); other
     ///   statuses map by code. A response larger than 100 MB throws the collector's own error
     ///   rather than a `StorageError`.
     public func download(path: String) async throws -> Data {
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)?alt=media"
+        try Self.validateObjectPath(path)
+        let url = configuration.objectMediaURL(for: path)
 
         var request = HTTPClientRequest(url: url)
         request.method = .GET
@@ -201,8 +200,8 @@ public final class StorageClient: Sendable {
     /// - Throws: `StorageError.notFound` when no such object exists. Deleting a missing object is
     ///   an error here, not a silent no-op.
     public func delete(path: String) async throws {
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
+        try Self.validateObjectPath(path)
+        let url = configuration.objectURL(for: path)
 
         var request = HTTPClientRequest(url: url)
         request.method = .DELETE
@@ -258,8 +257,8 @@ public final class StorageClient: Sendable {
     ///   is not an object resource becomes `.invalidArgument`; a body that is not JSON at all
     ///   propagates the `JSONSerialization` error rather than a `StorageError`.
     public func getMetadata(path: String) async throws -> StorageObject {
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let url = "\(configuration.baseURL)/b/\(configuration.bucket)/o/\(encodedPath)"
+        try Self.validateObjectPath(path)
+        let url = configuration.objectURL(for: path)
 
         var request = HTTPClientRequest(url: url)
         request.method = .GET
@@ -299,6 +298,23 @@ public final class StorageClient: Sendable {
     /// - Parameter path: The object name inside the bucket.
     public func publicURL(for path: String) -> URL {
         configuration.publicURL(for: path)
+    }
+
+    // MARK: - Path Validation
+
+    /// Rejects object names Cloud Storage does not accept, before a request is built.
+    ///
+    /// The rules are the ones the service documents: a name may not be empty, may not be `.` or
+    /// `..`, and may not contain a carriage return or line feed. Everything else is passed
+    /// through — object names are opaque to Cloud Storage, so `a/../b` names a real object.
+    /// - Throws: ``StorageError/invalidPath(path:)``.
+    static func validateObjectPath(_ path: String) throws {
+        guard !path.isEmpty, path != ".", path != ".." else {
+            throw StorageError.invalidPath(path: path)
+        }
+        guard !path.contains(where: { $0 == "\r" || $0 == "\n" }) else {
+            throw StorageError.invalidPath(path: path)
+        }
     }
 
     // MARK: - Internal

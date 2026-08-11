@@ -6,6 +6,9 @@ import Internal
 
 /// Performs privileged Firebase Auth user management through the Identity Toolkit REST API.
 ///
+/// Requests go out over `URLSession.shared`, not over the `HTTPClientProvider` the other clients in
+/// this package share.
+///
 /// Where ``AuthClient`` only inspects a token a client presented, this client acts on the user
 /// directory itself, so it needs service account authority: outside the emulator it takes an access
 /// token from the ambient GCP environment — the metadata server on Cloud Run, or local `gcloud`
@@ -27,8 +30,6 @@ import Internal
 public final class AuthAdminClient: Sendable {
     public let projectId: String
 
-    private let httpClientProvider: HTTPClientProvider
-
     /// The emulator to talk to, or `nil` to talk to the production Identity Toolkit.
     private let emulatorConfig: EmulatorSettings?
 
@@ -47,21 +48,6 @@ public final class AuthAdminClient: Sendable {
     /// - Parameter projectId: The Google Cloud project ID.
     public init(projectId: String) {
         self.projectId = projectId
-        self.httpClientProvider = HTTPClientProvider()
-        self.emulatorConfig = nil
-    }
-
-    /// Creates a production client alongside an existing HTTP client provider.
-    ///
-    /// - Parameters:
-    ///   - projectId: The Google Cloud project ID.
-    ///   - httpClientProvider: A provider shared with the other Firebase clients in the process.
-    ///
-    /// - Note: The Admin API requests go out over `URLSession.shared`, so passing a provider here does
-    ///   not put them on its connection pool.
-    public init(projectId: String, httpClientProvider: HTTPClientProvider) {
-        self.projectId = projectId
-        self.httpClientProvider = httpClientProvider
         self.emulatorConfig = nil
     }
 
@@ -85,7 +71,6 @@ public final class AuthAdminClient: Sendable {
 
     private init(projectId: String, emulatorConfig: EmulatorSettings) {
         self.projectId = projectId
-        self.httpClientProvider = HTTPClientProvider()
         self.emulatorConfig = emulatorConfig
     }
 

@@ -285,6 +285,64 @@ struct QueryTests {
         #expect(endAt != nil)
     }
 
+    // MARK: - Cursor Inclusivity
+    //
+    // `Cursor.before` says whether the boundary sits just before or just after the given values,
+    // so it reads differently at each end. Measured against the Firestore emulator over documents
+    // n = 1...5 ordered ascending, with the cursor value 3:
+    //
+    //   startAt before=true  -> [3, 4, 5]   inclusive  -> start(at:)
+    //   startAt before=false -> [4, 5]      exclusive  -> start(after:)
+    //   endAt   before=true  -> [1, 2]      exclusive  -> end(before:)
+    //   endAt   before=false -> [1, 2, 3]   inclusive  -> end(at:)
+
+    private func cursorFlag(_ query: Query<some Decodable & Sendable>, key: String) -> Bool? {
+        let cursor = query.buildStructuredQuery()[key] as? [String: Any]
+        return cursor?["before"] as? Bool
+    }
+
+    private func cursorCollection() throws -> CollectionReference {
+        CollectionReference(database: database, path: try CollectionPath("logs"))
+    }
+
+    struct Entry: Codable, Sendable { let n: Int }
+
+    @Test("start(at:) is inclusive, so the cursor sits before the values")
+    func startAtIsInclusive() throws {
+        let query = try cursorCollection().query(as: Entry.self)
+            .orderAscending(by: FieldPath("n"))
+            .start(at: .integer(3))
+
+        #expect(cursorFlag(query, key: "startAt") == true)
+    }
+
+    @Test("start(after:) is exclusive, so the cursor sits after the values")
+    func startAfterIsExclusive() throws {
+        let query = try cursorCollection().query(as: Entry.self)
+            .orderAscending(by: FieldPath("n"))
+            .start(after: .integer(3))
+
+        #expect(cursorFlag(query, key: "startAt") == false)
+    }
+
+    @Test("end(at:) is inclusive, so the cursor sits after the values")
+    func endAtIsInclusive() throws {
+        let query = try cursorCollection().query(as: Entry.self)
+            .orderAscending(by: FieldPath("n"))
+            .end(at: .integer(3))
+
+        #expect(cursorFlag(query, key: "endAt") == false)
+    }
+
+    @Test("end(before:) is exclusive, so the cursor sits before the values")
+    func endBeforeIsExclusive() throws {
+        let query = try cursorCollection().query(as: Entry.self)
+            .orderAscending(by: FieldPath("n"))
+            .end(before: .integer(3))
+
+        #expect(cursorFlag(query, key: "endAt") == true)
+    }
+
     // MARK: - Complex Query Tests
 
     @Test("Query - complex filter with AND")

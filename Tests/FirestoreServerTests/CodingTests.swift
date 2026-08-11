@@ -422,4 +422,123 @@ struct CodingTests {
         #expect(user.name == "Alice")
         #expect(user.age == 30)
     }
+
+    // MARK: - Hand-written encode(to:) with nested containers
+
+    /// Encodes through `nestedContainer(keyedBy:forKey:)` and `nestedUnkeyedContainer(forKey:)`
+    /// rather than through the synthesised path, which is where a container that is not written
+    /// back to its parent loses fields.
+    struct HandWritten: Encodable {
+        let id: String
+        let street: String
+        let city: String
+        let tags: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case id, address, tags
+        }
+
+        enum AddressKeys: String, CodingKey {
+            case street, city
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+
+            var address = container.nestedContainer(keyedBy: AddressKeys.self, forKey: .address)
+            try address.encode(street, forKey: .street)
+            try address.encode(city, forKey: .city)
+
+            var tagList = container.nestedUnkeyedContainer(forKey: .tags)
+            for tag in tags {
+                try tagList.encode(tag)
+            }
+        }
+    }
+
+    @Test("Encoder - nested keyed container is written back under its key")
+    func encodeNestedKeyedContainer() throws {
+        let fields = try FirestoreEncoder().encode(
+            HandWritten(id: "u1", street: "1 Main St", city: "Tokyo", tags: ["a", "b"])
+        )
+
+        #expect(fields["id"] == .string("u1"))
+        #expect(fields["address"] == .map([
+            "street": .string("1 Main St"),
+            "city": .string("Tokyo"),
+        ]))
+    }
+
+    @Test("Encoder - nested unkeyed container is written back under its key")
+    func encodeNestedUnkeyedContainer() throws {
+        let fields = try FirestoreEncoder().encode(
+            HandWritten(id: "u1", street: "1 Main St", city: "Tokyo", tags: ["a", "b"])
+        )
+
+        #expect(fields["tags"] == .array([.string("a"), .string("b")]))
+    }
+
+    @Test("Encoder - nested containers honour the key encoding strategy")
+    func encodeNestedContainerSnakeCase() throws {
+        struct Outer: Encodable {
+            enum CodingKeys: String, CodingKey { case homeAddress }
+            enum Inner: String, CodingKey { case streetName }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var inner = container.nestedContainer(keyedBy: Inner.self, forKey: .homeAddress)
+                try inner.encode("1 Main St", forKey: .streetName)
+            }
+        }
+
+        let fields = try FirestoreEncoder(keyEncodingStrategy: .convertToSnakeCase).encode(Outer())
+
+        #expect(fields["home_address"] == .map(["street_name": .string("1 Main St")]))
+    }
+
+    @Test("Encoder - a container nested inside an unkeyed container is kept")
+    func encodeKeyedContainerInsideUnkeyedContainer() throws {
+        struct Rows: Encodable {
+            enum CodingKeys: String, CodingKey { case rows }
+            enum RowKeys: String, CodingKey { case label }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var rows = container.nestedUnkeyedContainer(forKey: .rows)
+                var first = rows.nestedContainer(keyedBy: RowKeys.self)
+                try first.encode("one", forKey: .label)
+                var second = rows.nestedContainer(keyedBy: RowKeys.self)
+                try second.encode("two", forKey: .label)
+            }
+        }
+
+        let fields = try FirestoreEncoder().encode(Rows())
+
+        #expect(fields["rows"] == .array([
+            .map(["label": .string("one")]),
+            .map(["label": .string("two")]),
+        ]))
+    }
+
+    @Test("Encoder - superEncoder writes under its key instead of replacing the document")
+    func encodeSuperEncoder() throws {
+        struct WithSuper: Encodable {
+            enum CodingKeys: String, CodingKey { case name, base }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode("Alice", forKey: .name)
+
+                let base = container.superEncoder(forKey: .base)
+                var baseContainer = base.singleValueContainer()
+                try baseContainer.encode(42)
+            }
+        }
+
+        let fields = try FirestoreEncoder().encode(WithSuper())
+
+        #expect(fields["name"] == .string("Alice"))
+        #expect(fields["base"] == .integer(42))
+    }
 }

@@ -29,11 +29,12 @@ Verification is **offline**: nothing asks Firebase about the account, so a token
 its `exp` even if the account was disabled or its refresh tokens were revoked in the meantime. Where
 that matters, check the account state yourself.
 
-And **emulator mode skips all four steps**. A configuration built with
-``AuthConfiguration/emulator(projectId:host:port:timeout:)`` decodes the token and requires only a
-non-empty `sub` — no algorithm check, no `aud` or `iss` check, no expiry check, no signature. That
-is what lets the emulator's unsigned tokens through, and it is also why the emulator configuration
-must never reach production.
+And **emulator mode skips the signature step**. A configuration built with
+``AuthConfiguration/emulator(projectId:host:port:timeout:)`` accepts an unsigned token, which is
+what lets the emulator's tokens through; `exp`, `iat`, `auth_time`, `aud`, `iss`, and `sub` are
+checked exactly as in production. Nothing there establishes where a token came from, so anyone able
+to reach the service can mint one for any UID — the emulator configuration must never reach
+production.
 
 ### Key fetching and caching
 

@@ -64,45 +64,177 @@ public struct FirestoreEncoder: Sendable {
 
 // MARK: - Internal Encoder Implementation
 
+/// One position in the value being encoded, held by reference.
+///
+/// Containers hand out child nodes rather than copies of a value, so a nested container keeps
+/// writing into the tree its parent will read: `nestedContainer(keyedBy:forKey:)`,
+/// `nestedUnkeyedContainer(forKey:)`, and `superEncoder()` all land back under the key that
+/// produced them instead of being dropped.
+private final class EncodingNode {
+    private enum Storage {
+        case value(FirestoreValue)
+        case map([String: EncodingNode])
+        case array([EncodingNode])
+    }
+
+    private var storage: Storage = .value(.null)
+
+    /// Overwrites this position with a leaf value.
+    func write(_ value: FirestoreValue) {
+        storage = .value(value)
+    }
+
+    /// Turns this position into a map, keeping any children already written into it.
+    func startMap() {
+        if case .map = storage { return }
+        storage = .map([:])
+    }
+
+    /// Turns this position into an array, keeping any children already appended to it.
+    func startArray() {
+        if case .array = storage { return }
+        storage = .array([])
+    }
+
+    /// Returns the child under `key`, creating it on first use.
+    func child(forKey key: String) -> EncodingNode {
+        startMap()
+        guard case .map(var children) = storage else {
+            preconditionFailure("startMap() left the node in a non-map state")
+        }
+        if let existing = children[key] {
+            return existing
+        }
+        let child = EncodingNode()
+        children[key] = child
+        storage = .map(children)
+        return child
+    }
+
+    /// Appends a new child to this array position and returns it.
+    func appendChild() -> EncodingNode {
+        startArray()
+        guard case .array(var children) = storage else {
+            preconditionFailure("startArray() left the node in a non-array state")
+        }
+        let child = EncodingNode()
+        children.append(child)
+        storage = .array(children)
+        return child
+    }
+
+    /// How many children this position holds, which is the count an unkeyed container reports.
+    var childCount: Int {
+        switch storage {
+        case .value:
+            return 0
+        case .map(let children):
+            return children.count
+        case .array(let children):
+            return children.count
+        }
+    }
+
+    /// The Firestore value this position and everything below it encodes to.
+    var value: FirestoreValue {
+        switch storage {
+        case .value(let value):
+            return value
+        case .map(let children):
+            return .map(children.mapValues(\.value))
+        case .array(let children):
+            return .array(children.map(\.value))
+        }
+    }
+}
+
 private final class _FirestoreEncoder: Encoder {
-    var codingPath: [CodingKey] = []
+    let codingPath: [CodingKey]
     var userInfo: [CodingUserInfoKey: Any] = [:]
-    var value: FirestoreValue = .null
     let keyEncodingStrategy: KeyEncodingStrategy
 
-    init(keyEncodingStrategy: KeyEncodingStrategy = .useDefaultKeys) {
+    /// The position in the tree this encoder writes to.
+    let node: EncodingNode
+
+    init(
+        keyEncodingStrategy: KeyEncodingStrategy = .useDefaultKeys,
+        node: EncodingNode = EncodingNode(),
+        codingPath: [CodingKey] = []
+    ) {
         self.keyEncodingStrategy = keyEncodingStrategy
+        self.node = node
+        self.codingPath = codingPath
+    }
+
+    var value: FirestoreValue {
+        node.value
     }
 
     func container<Key: CodingKey>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> {
         let container = FirestoreKeyedEncodingContainer<Key>(
-            encoder: self,
-            keyEncodingStrategy: keyEncodingStrategy
+            node: node,
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath
         )
         return KeyedEncodingContainer(container)
     }
 
     func unkeyedContainer() -> UnkeyedEncodingContainer {
-        FirestoreUnkeyedEncodingContainer(encoder: self, keyEncodingStrategy: keyEncodingStrategy)
+        FirestoreUnkeyedEncodingContainer(
+            node: node,
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath
+        )
     }
 
     func singleValueContainer() -> SingleValueEncodingContainer {
-        FirestoreSingleValueEncodingContainer(encoder: self, keyEncodingStrategy: keyEncodingStrategy)
+        FirestoreSingleValueEncodingContainer(
+            node: node,
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath
+        )
     }
+}
+
+// MARK: - Shared Encoding
+
+/// Encodes one value into `node`, giving `Date` and `Data` their Firestore representations and
+/// letting everything else re-enter the encoder.
+private func encodeValue<T: Encodable>(
+    _ value: T,
+    into node: EncodingNode,
+    keyEncodingStrategy: KeyEncodingStrategy,
+    codingPath: [CodingKey]
+) throws {
+    if let date = value as? Date {
+        node.write(.timestamp(date))
+        return
+    }
+    if let data = value as? Data {
+        node.write(.bytes(data))
+        return
+    }
+
+    let nestedEncoder = _FirestoreEncoder(
+        keyEncodingStrategy: keyEncodingStrategy,
+        node: node,
+        codingPath: codingPath
+    )
+    try value.encode(to: nestedEncoder)
 }
 
 // MARK: - Keyed Container
 
 private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
-    var codingPath: [CodingKey] = []
-    let encoder: _FirestoreEncoder
+    let codingPath: [CodingKey]
+    let node: EncodingNode
     let keyEncodingStrategy: KeyEncodingStrategy
-    var fields: [String: FirestoreValue] = [:]
 
-    init(encoder: _FirestoreEncoder, keyEncodingStrategy: KeyEncodingStrategy) {
-        self.encoder = encoder
+    init(node: EncodingNode, keyEncodingStrategy: KeyEncodingStrategy, codingPath: [CodingKey]) {
+        self.node = node
         self.keyEncodingStrategy = keyEncodingStrategy
-        encoder.value = .map([:])
+        self.codingPath = codingPath
+        node.startMap()
     }
 
     mutating func encodeNil(forKey key: Key) throws {
@@ -166,71 +298,74 @@ private struct FirestoreKeyedEncodingContainer<Key: CodingKey>: KeyedEncodingCon
     }
 
     mutating func encode<T: Encodable>(_ value: T, forKey key: Key) throws {
-        // Types with a Firestore value of their own
-        if let date = value as? Date {
-            setField(key, .timestamp(date))
-            return
-        }
-        if let data = value as? Data {
-            setField(key, .bytes(data))
-            return
-        }
-
-        // Everything else re-enters the encoder
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        try value.encode(to: nestedEncoder)
-        setField(key, nestedEncoder.value)
+        try encodeValue(
+            value,
+            into: child(for: key),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [key]
+        )
     }
 
     mutating func nestedContainer<NestedKey: CodingKey>(
         keyedBy keyType: NestedKey.Type,
         forKey key: Key
     ) -> KeyedEncodingContainer<NestedKey> {
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        let container = FirestoreKeyedEncodingContainer<NestedKey>(
-            encoder: nestedEncoder,
-            keyEncodingStrategy: keyEncodingStrategy
-        )
-        // The nested encoder's value is never written back under `key`, so whatever is encoded
-        // into this container is dropped. Encode nested values through encode(_:forKey:).
-        return KeyedEncodingContainer(container)
+        KeyedEncodingContainer(FirestoreKeyedEncodingContainer<NestedKey>(
+            node: child(for: key),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [key]
+        ))
     }
 
     mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder, keyEncodingStrategy: keyEncodingStrategy)
+        FirestoreUnkeyedEncodingContainer(
+            node: child(for: key),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [key]
+        )
     }
 
     mutating func superEncoder() -> Encoder {
-        encoder
+        _FirestoreEncoder(
+            keyEncodingStrategy: keyEncodingStrategy,
+            node: node.child(forKey: "super"),
+            codingPath: codingPath
+        )
     }
 
     mutating func superEncoder(forKey key: Key) -> Encoder {
-        encoder
+        _FirestoreEncoder(
+            keyEncodingStrategy: keyEncodingStrategy,
+            node: child(for: key),
+            codingPath: codingPath + [key]
+        )
     }
 
-    private mutating func setField(_ key: Key, _ value: FirestoreValue) {
-        if case .map(var existingFields) = encoder.value {
-            let encodedKey = keyEncodingStrategy.encode(key.stringValue)
-            existingFields[encodedKey] = value
-            encoder.value = .map(existingFields)
-        }
+    private func child(for key: Key) -> EncodingNode {
+        node.child(forKey: keyEncodingStrategy.encode(key.stringValue))
+    }
+
+    private func setField(_ key: Key, _ value: FirestoreValue) {
+        child(for: key).write(value)
     }
 }
 
 // MARK: - Unkeyed Container
 
 private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
-    var codingPath: [CodingKey] = []
-    var count: Int = 0
-    let encoder: _FirestoreEncoder
+    let codingPath: [CodingKey]
+    let node: EncodingNode
     let keyEncodingStrategy: KeyEncodingStrategy
-    var values: [FirestoreValue] = []
 
-    init(encoder: _FirestoreEncoder, keyEncodingStrategy: KeyEncodingStrategy) {
-        self.encoder = encoder
+    init(node: EncodingNode, keyEncodingStrategy: KeyEncodingStrategy, codingPath: [CodingKey]) {
+        self.node = node
         self.keyEncodingStrategy = keyEncodingStrategy
-        encoder.value = .array([])
+        self.codingPath = codingPath
+        node.startArray()
+    }
+
+    var count: Int {
+        node.childCount
     }
 
     mutating func encodeNil() throws {
@@ -294,128 +429,147 @@ private struct FirestoreUnkeyedEncodingContainer: UnkeyedEncodingContainer {
     }
 
     mutating func encode<T: Encodable>(_ value: T) throws {
-        if let date = value as? Date {
-            append(.timestamp(date))
-            return
-        }
-        if let data = value as? Data {
-            append(.bytes(data))
-            return
-        }
-
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        try value.encode(to: nestedEncoder)
-        append(nestedEncoder.value)
+        try encodeValue(
+            value,
+            into: node.appendChild(),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [FirestoreCodingKey(index: count)]
+        )
     }
 
     mutating func nestedContainer<NestedKey: CodingKey>(
         keyedBy keyType: NestedKey.Type
     ) -> KeyedEncodingContainer<NestedKey> {
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        return KeyedEncodingContainer(FirestoreKeyedEncodingContainer<NestedKey>(
-            encoder: nestedEncoder,
-            keyEncodingStrategy: keyEncodingStrategy
+        KeyedEncodingContainer(FirestoreKeyedEncodingContainer<NestedKey>(
+            node: node.appendChild(),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [FirestoreCodingKey(index: count)]
         ))
     }
 
     mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        return FirestoreUnkeyedEncodingContainer(encoder: nestedEncoder, keyEncodingStrategy: keyEncodingStrategy)
+        FirestoreUnkeyedEncodingContainer(
+            node: node.appendChild(),
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath + [FirestoreCodingKey(index: count)]
+        )
     }
 
     mutating func superEncoder() -> Encoder {
-        encoder
+        _FirestoreEncoder(
+            keyEncodingStrategy: keyEncodingStrategy,
+            node: node.appendChild(),
+            codingPath: codingPath + [FirestoreCodingKey(index: count)]
+        )
     }
 
-    private mutating func append(_ value: FirestoreValue) {
-        if case .array(var existingValues) = encoder.value {
-            existingValues.append(value)
-            encoder.value = .array(existingValues)
-            count += 1
-        }
+    private func append(_ value: FirestoreValue) {
+        node.appendChild().write(value)
     }
 }
 
 // MARK: - Single Value Container
 
 private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContainer {
-    var codingPath: [CodingKey] = []
-    let encoder: _FirestoreEncoder
+    let codingPath: [CodingKey]
+    let node: EncodingNode
     let keyEncodingStrategy: KeyEncodingStrategy
 
+    init(node: EncodingNode, keyEncodingStrategy: KeyEncodingStrategy, codingPath: [CodingKey]) {
+        self.node = node
+        self.keyEncodingStrategy = keyEncodingStrategy
+        self.codingPath = codingPath
+    }
+
     mutating func encodeNil() throws {
-        encoder.value = .null
+        node.write(.null)
     }
 
     mutating func encode(_ value: Bool) throws {
-        encoder.value = .boolean(value)
+        node.write(.boolean(value))
     }
 
     mutating func encode(_ value: String) throws {
-        encoder.value = .string(value)
+        node.write(.string(value))
     }
 
     mutating func encode(_ value: Double) throws {
-        encoder.value = .double(value)
+        node.write(.double(value))
     }
 
     mutating func encode(_ value: Float) throws {
-        encoder.value = .double(Double(value))
+        node.write(.double(Double(value)))
     }
 
     mutating func encode(_ value: Int) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: Int8) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: Int16) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: Int32) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: Int64) throws {
-        encoder.value = .integer(value)
+        node.write(.integer(value))
     }
 
     mutating func encode(_ value: UInt) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: UInt8) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: UInt16) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: UInt32) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode(_ value: UInt64) throws {
-        encoder.value = .integer(Int64(value))
+        node.write(.integer(Int64(value)))
     }
 
     mutating func encode<T: Encodable>(_ value: T) throws {
-        if let date = value as? Date {
-            encoder.value = .timestamp(date)
-            return
-        }
-        if let data = value as? Data {
-            encoder.value = .bytes(data)
-            return
-        }
+        try encodeValue(
+            value,
+            into: node,
+            keyEncodingStrategy: keyEncodingStrategy,
+            codingPath: codingPath
+        )
+    }
+}
 
-        let nestedEncoder = _FirestoreEncoder(keyEncodingStrategy: keyEncodingStrategy)
-        try value.encode(to: nestedEncoder)
-        encoder.value = nestedEncoder.value
+// MARK: - Coding Key
+
+/// The coding key an unkeyed container reports for its elements.
+private struct FirestoreCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init(index: Int) {
+        self.stringValue = "Index \(index)"
+        self.intValue = index
+    }
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.init(index: intValue)
     }
 }
 
@@ -423,8 +577,8 @@ private struct FirestoreSingleValueEncodingContainer: SingleValueEncodingContain
 
 /// A value that could not be encoded for Firestore.
 public enum FirestoreEncodingError: Error, Sendable {
+    /// The value did not encode to a map, so it has no field names and cannot be a document.
     case topLevelNotObject
-    case unsupportedType(Any.Type)
 }
 
 extension FirestoreEncodingError: CustomStringConvertible {
@@ -432,8 +586,6 @@ extension FirestoreEncodingError: CustomStringConvertible {
         switch self {
         case .topLevelNotObject:
             return "Top-level value must encode to an object (map)"
-        case .unsupportedType(let type):
-            return "Unsupported type for Firestore encoding: \(type)"
         }
     }
 }

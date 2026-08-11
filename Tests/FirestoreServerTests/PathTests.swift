@@ -61,4 +61,50 @@ struct PathTests {
         #expect(subcollection.rawValue == "users/abc/books")
         #expect(nestedDocument.rawValue == "users/abc/books/xyz")
     }
+
+
+    // MARK: - Segment Validation
+    //
+    // Measured against the Firestore emulator, PATCH on each of these paths comes back 400:
+    //   ids/__weird__  -> Resource id "__weird__" is invalid because it is reserved.
+    //   __sys__/x      -> Collection id "__sys__" is invalid because it is reserved.
+    //   ids/.          -> contains a resource id "."
+    //   ids/..         -> contains a resource id ".."
+    //   ids/<1600 a>   -> The key path element name is longer than 1500 bytes.
+
+    @Test("Reserved, dotted, and over-long IDs are refused before a request is built")
+    func pathRejectsInvalidSegments() {
+        let invalid = [
+            "ids/__weird__",
+            "__sys__/x",
+            "ids/.",
+            "ids/..",
+            "ids/" + String(repeating: "a", count: 1501),
+        ]
+
+        for path in invalid {
+            #expect(throws: PathError.self, "expected \(path) to be refused") {
+                _ = try ResourcePath(path)
+            }
+        }
+    }
+
+    @Test("The refusal names the offending segment")
+    func pathErrorCarriesTheSegment() throws {
+        do {
+            _ = try DocumentPath("users/__id__")
+            Issue.record("Expected PathError.invalidCharacters")
+        } catch let error as PathError {
+            #expect(error == .invalidCharacters("__id__"))
+        }
+    }
+
+    @Test("Ordinary IDs, including ones with dots and underscores, are accepted")
+    func pathAcceptsOrdinarySegments() throws {
+        _ = try DocumentPath("users/abc.123")
+        _ = try DocumentPath("users/_private")
+        _ = try DocumentPath("users/__")
+        _ = try CollectionPath("users/abc/books")
+        _ = try DocumentPath("users/" + String(repeating: "a", count: 1500))
+    }
 }

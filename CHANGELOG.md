@@ -7,7 +7,27 @@
 
 ## [未リリース]
 
-なし
+### 破壊的変更
+
+- **`updateDocument` を `setDocument` と `updateDocument` に分割**
+  - `setDocument(_:data:)` / `setDocument(_:fields:)`: 従来の `updateDocument` と同じ全置換（`updateMask` なし・存在前提なし）。無い場合は作成される
+  - `updateDocument(_:data:)` / `updateDocument(_:fields:)`: `updateMask.fieldPaths` に渡したフィールドだけを載せ、`currentDocument.exists=true` を付ける部分更新。渡していないフィールドは残り、ドキュメントが無ければ 404
+  - 空の `fields` は `FirestoreError.api(.invalidArgument)`。マスク無しの全置換に化けるため
+  - `FirestoreSchema` の `DocumentHandle.update(data:)` は部分更新になり、全置換は `set(data:)` に移動
+- **カーソルの内外が逆だったのを修正**: `start(at:)` は `before: true`（境界を含む）、`start(after:)` は `before: false`（境界を除く）。`end(at:)` / `end(before:)` は変更なし
+- **エミュレーターモードでも検証する**: `IDTokenVerifier` はエミュレーター設定でも `exp` / `iat` / `auth_time` / `aud` / `iss` / `sub` を検証する（署名だけが検証できない）。本番経路では署名検証をクレーム検証より先に行う
+- **使われていないエラーケースを削除**: `AuthError.verificationFailed`、`StorageError.fileTooLarge` / `.invalidContentType`、`GCPAuthError.providerNotInitialized` / `.environmentDetectionFailed`、`FirestoreEncodingError.unsupportedType`
+- **`AuthAdminClient` から未使用の `httpClientProvider` を削除**: 保持するだけで `URLSession.shared` を使っていた。`init(projectId:httpClientProvider:)` も削除
+
+### 修正
+
+- **Storage のオブジェクト名を完全にパーセントエンコードする**: `.urlPathAllowed` は `/` `&` `+` を残すため、`o/{object}` がネストしたパスで解決せず、アップロードの `name` も変わっていた
+- **Storage のパス検証**: 空・`.`・`..`・改行を含む名前は `StorageError.invalidPath` でリクエスト前に弾く
+- **`FirestoreEncoder` が入れ子コンテナを捨てていた**: 手書きの `encode(to:)` で `nestedContainer` / `nestedUnkeyedContainer` / `superEncoder` を使うとフィールドが黙って消えていた。親へ書き戻すよう内部を作り直した
+- **`@FirestoreModel` が省略記法の getter を格納プロパティ扱いしていた**: `var x: Int { 1 }` に `CodingKeys` と `Fields` が生えていた。`static` / `class` プロパティも除外する
+- **パスセグメントを検証する**: `.` / `..` / `__.*__` / 1,500 バイト超は `PathError.invalidCharacters`
+- **コーディング失敗を `FirestoreError` で包む**: デコード失敗は `.decoding`、エンコード失敗は `.encoding`
+- **クエリ値をエスケープする**: `createDocument` の `documentId` と `listDocuments` の `pageToken`
 
 ## [1.0.17] - 2026-01-17
 

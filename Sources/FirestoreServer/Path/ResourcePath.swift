@@ -22,15 +22,21 @@ public struct ResourcePath: Sendable, Hashable {
     /// Parses a slash-separated path, tagging segments as collection and document in turn.
     ///
     /// Empty components are dropped, so leading, trailing, and repeated slashes are tolerated.
-    /// The segments themselves are not validated: their characters and length are passed through
-    /// untouched, and it is Firestore that rejects an ID it does not accept.
+    /// Every remaining segment is checked against the rules Firestore applies to collection and
+    /// document IDs, so an ID the server would refuse is refused here instead of becoming a
+    /// request.
     ///
     /// - Parameter path: A slash-separated path such as `users/abc123/books`.
-    /// - Throws: `PathError.emptyPath` if the string yields no segments.
+    /// - Throws: `PathError.emptyPath` if the string yields no segments, or
+    ///   `PathError.invalidCharacters` naming the first segment Firestore does not accept.
     public init(_ path: String) throws(PathError) {
         let parts = path.split(separator: "/").map(String.init)
         guard !parts.isEmpty else {
             throw .emptyPath
+        }
+
+        for part in parts {
+            try Self.validateSegment(part)
         }
 
         // Read the segments alternately as collection, document, collection, ...
@@ -43,6 +49,27 @@ public struct ResourcePath: Sendable, Hashable {
             }
         }
         self.segments = segments
+    }
+
+    /// Checks one path segment against Firestore's ID rules.
+    ///
+    /// The rules, each confirmed against the Firestore emulator, are that an ID may not be `.` or
+    /// `..`, may not match `__.*__` (those are reserved), and may not exceed 1,500 bytes. `/` is
+    /// not checked because it is the separator the path was split on.
+    ///
+    /// - Throws: `PathError.invalidCharacters` carrying the offending segment.
+    static func validateSegment(_ id: String) throws(PathError) {
+        if id == "." || id == ".." {
+            throw .invalidCharacters(id)
+        }
+
+        if id.count >= 4, id.hasPrefix("__"), id.hasSuffix("__") {
+            throw .invalidCharacters(id)
+        }
+
+        if id.utf8.count > 1500 {
+            throw .invalidCharacters(id)
+        }
     }
 
     /// Whether the path has an odd number of segments and so names a collection.

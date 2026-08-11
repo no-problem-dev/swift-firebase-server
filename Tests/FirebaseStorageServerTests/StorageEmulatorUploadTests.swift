@@ -79,6 +79,34 @@ struct StorageEmulatorUploadTests {
         }
     }
 
+    /// ネストしたパスのオブジェクトを upload -> getMetadata -> download -> delete と一周させる。
+    /// `o/{object}` は 1 セグメントなので `/` は `%2F` でなければ経路が解決しない。
+    @Test("Emulator round trip - nested object path")
+    func emulatorNestedPathRoundTrip() async throws {
+        let client = try await StorageClient(
+            .emulator(projectId: "reading-memory"),
+            bucket: "reading-memory.appspot.com"
+        )
+
+        let path = "users/abc123/images/photo-\(UUID().uuidString).jpg"
+        let payload = Data("nested path payload".utf8)
+
+        let uploaded = try await client.upload(data: payload, path: path, contentType: "image/jpeg")
+        #expect(uploaded.name == path)
+
+        let metadata = try await client.getMetadata(path: path)
+        #expect(metadata.name == path)
+
+        let downloaded = try await client.download(path: path)
+        #expect(downloaded == payload)
+
+        try await client.delete(path: path)
+
+        await #expect(throws: StorageError.self) {
+            _ = try await client.getMetadata(path: path)
+        }
+    }
+
     /// 直接HTTPリクエストを送信してレスポンスを確認
     @Test("Emulator upload - direct HTTP request")
     func emulatorDirectHTTPRequest() async throws {

@@ -24,10 +24,12 @@ surprise people:
 - **Create refuses to overwrite.** ``FirestoreClient/createDocument(_:data:)`` posts to the parent
   collection with `?documentId=`, so an ID already in use comes back as `409` →
   ``FirestoreError/alreadyExists(path:)``.
-- **Update is not a merge.** ``FirestoreClient/updateDocument(_:data:)`` sends `PATCH` with the
-  encoded model and no `updateMask`, so Firestore takes those fields as the document's complete set
-  — anything the model leaves out is dropped. Pass a full value, or use the
-  `updateDocument(_:fields:)` overload to send exactly the fields you mean.
+- **Set replaces, update merges.** ``FirestoreClient/setDocument(_:data:)`` sends `PATCH` with no
+  `updateMask`, so Firestore takes the encoded fields as the document's complete set: anything the
+  value leaves out is dropped, and a document that is not there is created.
+  ``FirestoreClient/updateDocument(_:data:)`` sends the same `PATCH` with `updateMask.fieldPaths`
+  naming exactly the encoded fields and `currentDocument.exists=true`, so every other field of the
+  stored document survives and a missing document comes back as `404` rather than being created.
 - **Queries are not transactional and not paged.** ``FirestoreClient/runQuery(_:)`` posts
   `:runQuery` with no transaction and no read time, so it sees the database as of whenever the
   server got to it and two consecutive runs can disagree. The whole result also arrives in one
@@ -109,7 +111,7 @@ try await firestore.createDocument(userRef, data: newUser)
 
 let loaded = try await firestore.getDocument(userRef, as: User.self)
 
-try await firestore.updateDocument(userRef, data: editedUser)
+try await firestore.setDocument(userRef, data: editedUser)
 
 try await firestore.deleteDocument(userRef)
 ```
@@ -118,7 +120,7 @@ When a document holds fields your model does not describe — a server timestamp
 process owns — drop to the untyped overloads, which take and return ``FirestoreValue`` directly:
 
 ```swift
-// Writes exactly these two fields, leaving nothing else to guess about.
+// Writes exactly these two fields and leaves the rest of the document alone.
 try await firestore.updateDocument(userRef, fields: [
     "status": .string("suspended"),
     "suspendedAt": .timestamp(Date()),

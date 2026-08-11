@@ -12,10 +12,10 @@ public enum PathError: Error, Sendable, Hashable {
     /// The path has an odd number of segments, so it names a collection, not a document.
     case invalidDocumentPath(String)
 
-    /// The path holds a character Firestore does not accept in an ID.
+    /// One segment is an ID Firestore does not accept, and the payload is that segment.
     ///
-    /// Parsing does not inspect segment characters, so this case is for callers doing their own
-    /// validation; the server is what rejects a bad ID otherwise.
+    /// Raised while parsing, for a segment that is `.` or `..`, matches the reserved `__.*__`
+    /// shape, or runs past 1,500 bytes.
     case invalidCharacters(String)
 }
 
@@ -28,8 +28,8 @@ extension PathError: CustomStringConvertible {
             return "Invalid collection path: '\(path)' (must have odd number of segments)"
         case .invalidDocumentPath(let path):
             return "Invalid document path: '\(path)' (must have even number of segments >= 2)"
-        case .invalidCharacters(let path):
-            return "Path contains invalid characters: '\(path)'"
+        case .invalidCharacters(let segment):
+            return "Path segment is not a valid Firestore ID: '\(segment)'"
         }
     }
 }

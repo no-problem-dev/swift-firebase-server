@@ -18,15 +18,6 @@ public enum GCPAuthError: Error, LocalizedError, Sendable {
     /// gcloud ran but exited non-zero, or printed nothing. The payload carries its standard
     /// error output.
     case gcloudExecutionFailed(String)
-    /// An access token was requested before its provider had been set up.
-    ///
-    /// Nothing in this package throws this case.
-    case providerNotInitialized
-    /// Neither Cloud Run nor a usable local setup could be identified.
-    ///
-    /// Nothing in this package throws this case: detection falls back to the local mode rather
-    /// than failing, so a machine without gcloud surfaces `gcloudNotAvailable` instead.
-    case environmentDetectionFailed
 
     public var errorDescription: String? {
         switch self {
@@ -42,10 +33,6 @@ public enum GCPAuthError: Error, LocalizedError, Sendable {
             return "gcloud CLI is not available. Please install Google Cloud SDK."
         case .gcloudExecutionFailed(let message):
             return "gcloud CLI execution failed: \(message)"
-        case .providerNotInitialized:
-            return "Access token provider is not initialized"
-        case .environmentDetectionFailed:
-            return "Failed to detect GCP environment. Use explicit configuration or run on Cloud Run/with gcloud CLI."
         }
     }
 }

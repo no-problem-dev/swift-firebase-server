@@ -228,16 +228,26 @@ extension FirestoreDocumentProtocol {
     ///
     /// The write is addressed to the parent collection with an explicit document ID, so it
     /// fails with `FirestoreError.api(.alreadyExists)` if something is already there. Use
-    /// `update(data:)` when overwriting is the intent.
+    /// `set(data:)` when overwriting is the intent.
     public func create(data: Model) async throws {
         try await client.createDocument(reference, data: data)
     }
 
-    /// Replaces the document with the encoded value.
+    /// Replaces the document with the encoded value, creating it if it is not there.
     ///
     /// The PATCH carries no update mask, so this is a whole-document write rather than a merge:
     /// fields the stored document has and `data` does not are dropped. No `currentDocument`
     /// precondition is sent either, so concurrent writers are resolved last-write-wins.
+    public func set(data: Model) async throws {
+        try await client.setDocument(reference, data: data)
+    }
+
+    /// Writes the model's fields and leaves every other field of the stored document alone.
+    ///
+    /// The PATCH carries an update mask naming exactly the fields `Model` encodes, so a field
+    /// another process owns survives the write. It also carries `currentDocument.exists`, so a
+    /// document that is not there fails with `FirestoreError.api(.notFound)` rather than being
+    /// created — use `set(data:)` for an upsert.
     public func update(data: Model) async throws {
         try await client.updateDocument(reference, data: data)
     }

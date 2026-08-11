@@ -28,7 +28,6 @@ struct AuthErrorTests {
     @Test("Verification failed errors have same code")
     func testVerificationFailedErrorCodes() {
         let errors: [AuthError] = [
-            .verificationFailed(reason: "test"),
             .unsupportedAlgorithm("HS256"),
             .signatureInvalid,
             .invalidIssuer(expected: "a", actual: "b"),

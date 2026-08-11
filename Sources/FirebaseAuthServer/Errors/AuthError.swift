@@ -6,7 +6,7 @@ import Foundation
 /// - `AUTH_TOKEN_MISSING` → `.tokenMissing`
 /// - `AUTH_TOKEN_INVALID` → `.tokenInvalid`
 /// - `AUTH_TOKEN_EXPIRED` → `.tokenExpired`
-/// - `AUTH_VERIFICATION_FAILED` → `.verificationFailed`
+/// - `AUTH_VERIFICATION_FAILED` → `.signatureInvalid` and the other verification cases
 /// - `AUTH_USER_NOT_FOUND` → `.userNotFound`
 public enum AuthError: Error, Sendable {
     // MARK: - Token Extraction Errors
@@ -24,12 +24,6 @@ public enum AuthError: Error, Sendable {
     case tokenExpired(expiredAt: Date)
 
     // MARK: - Token Verification Errors
-
-    /// A verification failure that no other case describes.
-    ///
-    /// This package never throws it; it exists so callers layering their own checks on top can reuse
-    /// the `AUTH_VERIFICATION_FAILED` code.
-    case verificationFailed(reason: String)
 
     /// The header's `alg` was something other than `RS256`.
     case unsupportedAlgorithm(String)
@@ -93,9 +87,6 @@ extension AuthError: CustomStringConvertible {
             let formatter = ISO8601DateFormatter()
             return "Token expired at \(formatter.string(from: expiredAt))"
 
-        case .verificationFailed(let reason):
-            return "Token verification failed: \(reason)"
-
         case .unsupportedAlgorithm(let alg):
             return "Unsupported algorithm: \(alg). Expected RS256"
 
@@ -145,7 +136,7 @@ extension AuthError {
             return "AUTH_TOKEN_INVALID"
         case .tokenExpired:
             return "AUTH_TOKEN_EXPIRED"
-        case .verificationFailed, .unsupportedAlgorithm, .signatureInvalid,
+        case .unsupportedAlgorithm, .signatureInvalid,
              .invalidIssuer, .invalidAudience, .publicKeyFetchFailed,
              .publicKeyNotFound, .invalidPublicKey:
             return "AUTH_VERIFICATION_FAILED"

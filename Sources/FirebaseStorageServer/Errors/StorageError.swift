@@ -2,23 +2,14 @@ import Foundation
 import Internal
 
 /// A failure from a Cloud Storage operation.
-///
-/// `StorageClient` only ever raises ``api(_:)``. The other three cases are for callers that
-/// validate a size, a content type, or a path of their own before uploading — nothing in this
-/// package produces them, and nothing in this package enforces the limits they describe.
 public enum StorageError: Error, Sendable {
     /// A status-level failure from the API, mapped by HTTP status code.
-    ///
-    /// This is the only case the client itself raises.
     case api(APIError)
 
-    /// An upload was rejected against a size limit the caller imposed.
-    case fileTooLarge(size: Int64, maxSize: Int64)
-
-    /// An upload was rejected against a content-type allowlist the caller imposed.
-    case invalidContentType(contentType: String)
-
-    /// A path was rejected by the caller's own validation, such as a traversal check.
+    /// The object name is one Cloud Storage does not accept, caught before any request went out.
+    ///
+    /// Raised by every ``StorageClient`` call that takes a path: the name was empty, was `.` or
+    /// `..`, or held a carriage return or line feed.
     case invalidPath(path: String)
 }
 
@@ -84,10 +75,6 @@ extension StorageError: CustomStringConvertible {
         switch self {
         case .api(let apiError):
             return apiError.description
-        case .fileTooLarge(let size, let maxSize):
-            return "File too large: \(size) bytes (max: \(maxSize) bytes)"
-        case .invalidContentType(let contentType):
-            return "Invalid content type: \(contentType)"
         case .invalidPath(let path):
             return "Invalid storage path: \(path)"
         }

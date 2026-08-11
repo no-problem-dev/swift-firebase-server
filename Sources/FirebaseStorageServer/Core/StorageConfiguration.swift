@@ -129,6 +129,37 @@ public struct StorageConfiguration: ServiceConfiguration, EmulatorConfigurable, 
 
     // MARK: - URL Builders
 
+    /// Percent-encodes an object name for use in a URL.
+    ///
+    /// Everything outside RFC 3986's unreserved set is escaped, so `/` becomes `%2F` and `&`, `+`,
+    /// `#`, `?`, and spaces are escaped too. The JSON API takes the object name as a single path
+    /// segment of `b/{bucket}/o/{object}`, so a nested name that keeps its slashes addresses a URL
+    /// that does not route; the upload endpoint takes it as the `name` query value, where an
+    /// unescaped `&` or `+` changes the name that arrives.
+    static func percentEncodedObjectName(_ path: String) -> String {
+        let unreserved = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
+        // Non-ASCII characters are outside the set, so they are escaped as their UTF-8 bytes and
+        // the force-unwrap-free fallback never applies.
+        return path.addingPercentEncoding(withAllowedCharacters: unreserved) ?? path
+    }
+
+    /// The JSON API URL for an object's resource: metadata reads and deletes.
+    func objectURL(for path: String) -> String {
+        "\(baseURL)/b/\(Self.percentEncodedObjectName(bucket))/o/\(Self.percentEncodedObjectName(path))"
+    }
+
+    /// The JSON API URL for an object's bytes.
+    func objectMediaURL(for path: String) -> String {
+        "\(objectURL(for: path))?alt=media"
+    }
+
+    /// The JSON API URL for a single-request media upload, which names the object in the query.
+    func uploadURL(for path: String) -> String {
+        "\(uploadBaseURL)/b/\(Self.percentEncodedObjectName(bucket))/o?uploadType=media&name=\(Self.percentEncodedObjectName(path))"
+    }
+
     /// Builds the unauthenticated URL for an object.
     ///
     /// Returns `https://storage.googleapis.com/{bucket}/{path}`, or `http://{host}:{port}/{bucket}/{path}`

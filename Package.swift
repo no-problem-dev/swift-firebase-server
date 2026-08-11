@@ -136,7 +136,12 @@ let package = Package(
         // Tests
         .testTarget(
             name: "FirestoreServerTests",
-            dependencies: ["FirestoreServer"]
+            dependencies: [
+                "FirestoreServer",
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+            ]
         ),
         .testTarget(
             name: "FirestoreMacrosTests",

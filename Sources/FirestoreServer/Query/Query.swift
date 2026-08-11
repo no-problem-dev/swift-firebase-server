@@ -196,21 +196,10 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
+    /// Starts the result set at the given values, including a document that matches them.
+    ///
+    /// Sends `startAt` with `before: true`, which places the boundary just before the values.
     public func start(at values: FirestoreValue...) -> Query<T> {
-        Query(
-            collection: collection,
-            collectionSelectors: collectionSelectors,
-            filter: filter,
-            orderBy: orderByClause,
-            startAt: QueryCursor(values: values, before: false),
-            endAt: endAtCursor,
-            limit: limitCount,
-            offset: offsetCount,
-            projection: projection
-        )
-    }
-
-    public func start(after values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
             collectionSelectors: collectionSelectors,
@@ -224,6 +213,26 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
+    /// Starts the result set after the given values, skipping a document that matches them.
+    ///
+    /// Sends `startAt` with `before: false`, which places the boundary just after the values.
+    public func start(after values: FirestoreValue...) -> Query<T> {
+        Query(
+            collection: collection,
+            collectionSelectors: collectionSelectors,
+            filter: filter,
+            orderBy: orderByClause,
+            startAt: QueryCursor(values: values, before: false),
+            endAt: endAtCursor,
+            limit: limitCount,
+            offset: offsetCount,
+            projection: projection
+        )
+    }
+
+    /// Ends the result set at the given values, including a document that matches them.
+    ///
+    /// Sends `endAt` with `before: false`, which places the boundary just after the values.
     public func end(at values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,
@@ -238,6 +247,9 @@ public struct Query<T>: FirestoreQueryProtocol, Sendable where T: Decodable & Se
         )
     }
 
+    /// Ends the result set before the given values, excluding a document that matches them.
+    ///
+    /// Sends `endAt` with `before: true`, which places the boundary just before the values.
     public func end(before values: FirestoreValue...) -> Query<T> {
         Query(
             collection: collection,

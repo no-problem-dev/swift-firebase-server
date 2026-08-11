@@ -63,4 +63,73 @@ struct StorageClientTests {
         let url = client.publicURL(for: "images/photo.jpg")
         #expect(url.absoluteString == "http://localhost:9199/test-bucket/images/photo.jpg")
     }
+
+    // MARK: - Object Name Encoding
+    //
+    // The JSON API takes the object name as the single path segment of `b/{bucket}/o/{object}`,
+    // so a nested name has to arrive as `images%2Fphoto.jpg`. See
+    // https://cloud.google.com/storage/docs/request-endpoints#encoding
+
+    let production = StorageConfiguration(projectId: "test-project", bucket: "test-bucket")
+
+    @Test("Object URL - nested path is a single encoded segment")
+    func objectURLEncodesSlashes() {
+        let url = production.objectURL(for: "images/user123/photo.jpg")
+
+        #expect(url == "https://storage.googleapis.com/storage/v1/b/test-bucket/o/images%2Fuser123%2Fphoto.jpg")
+    }
+
+    @Test("Download URL - nested path is a single encoded segment")
+    func mediaURLEncodesSlashes() {
+        let url = production.objectMediaURL(for: "images/user123/photo.jpg")
+
+        #expect(url == "https://storage.googleapis.com/storage/v1/b/test-bucket/o/images%2Fuser123%2Fphoto.jpg?alt=media")
+    }
+
+    @Test("Upload URL - name query value is fully encoded")
+    func uploadURLEncodesNameQueryValue() {
+        let url = production.uploadURL(for: "a&b/c+d e.jpg")
+
+        #expect(url == "https://storage.googleapis.com/upload/storage/v1/b/test-bucket/o?uploadType=media&name=a%26b%2Fc%2Bd%20e.jpg")
+    }
+
+    @Test("Object URL - reserved characters are escaped")
+    func objectURLEncodesReservedCharacters() {
+        let url = production.objectURL(for: "q?a#b&c+d")
+
+        #expect(url.hasSuffix("/o/q%3Fa%23b%26c%2Bd"))
+    }
+
+    @Test("Object URL - unreserved characters are left alone")
+    func objectURLKeepsUnreservedCharacters() {
+        let url = production.objectURL(for: "a-b_c.d~e")
+
+        #expect(url.hasSuffix("/o/a-b_c.d~e"))
+    }
+
+    // MARK: - Object Name Validation
+
+    @Test("Upload rejects an empty object name before sending anything")
+    func uploadRejectsEmptyPath() async throws {
+        let client = try await StorageClient(.emulator(projectId: "test-project"), bucket: "test-bucket")
+
+        await #expect(throws: StorageError.self) {
+            _ = try await client.upload(data: Data(), path: "", contentType: "image/jpeg")
+        }
+    }
+
+    @Test("Every path-taking call rejects the names Cloud Storage does not accept")
+    func pathValidationRejectsInvalidNames() throws {
+        for name in ["", ".", "..", "a\nb", "a\rb"] {
+            #expect(throws: StorageError.self) {
+                try StorageClient.validateObjectPath(name)
+            }
+        }
+    }
+
+    @Test("Path validation accepts an ordinary nested name")
+    func pathValidationAcceptsNestedName() throws {
+        try StorageClient.validateObjectPath("images/user123/photo.jpg")
+        try StorageClient.validateObjectPath("a/../b")
+    }
 }

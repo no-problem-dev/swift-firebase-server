@@ -20,21 +20,22 @@ public protocol IDTokenVerifying: Sendable {
 ///
 /// 1. The token splits into exactly three dot-separated Base64URL parts.
 /// 2. The header's `alg` is exactly `RS256`.
-/// 3. The claims: `exp` is not past, `iat` and `auth_time` are not in the future, `aud` equals the
+/// 3. The RS256 signature, against the Google certificate named by the header's `kid`.
+/// 4. The claims: `exp` is not past, `iat` and `auth_time` are not in the future, `aud` equals the
 ///    project ID, `iss` equals `https://securetoken.google.com/{projectId}`, and `sub` is non-empty.
 ///    Every time comparison allows `clockSkewTolerance` of slack in the relevant direction.
-/// 4. The RS256 signature, against the Google certificate named by the header's `kid`.
 ///
-/// Claims are checked before the signature, so a claim failure says nothing about whether the token
-/// was genuine.
+/// The signature is checked before the claims, so no claim is read from a token that has not been
+/// shown to be genuine first.
 ///
 /// Nothing beyond that list is checked. Revocation and account-disabled state are not checked (that
 /// needs an Admin API lookup), the `typ` header and any custom claims are ignored, `nbf` is ignored,
 /// and the certificate that carries the public key is used only as a container for that key — its
 /// validity dates, extensions, and issuer signature are never verified.
 ///
-/// - Warning: When ``AuthConfiguration/useEmulator`` is set, every check above is skipped except that
-///   `sub` is non-empty. Never give a production deployment an emulator configuration.
+/// - Warning: When ``AuthConfiguration/useEmulator`` is set, step 3 is skipped — emulator tokens are
+///   unsigned, so nothing there proves the token came from anywhere. The structure and every claim in
+///   step 4 are still checked. Never give a production deployment an emulator configuration.
 public final class IDTokenVerifier: IDTokenVerifying, Sendable {
     private let configuration: AuthConfiguration
 
@@ -69,7 +70,7 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
     // MARK: - IDTokenVerifying
 
     public func verify(_ idToken: String) async throws -> VerifiedToken {
-        // In emulator mode, skip the signature check and every claim check
+        // In emulator mode, only the signature check is out of reach
         if configuration.useEmulator {
             return try verifyEmulatorToken(idToken)
         }
@@ -82,11 +83,11 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
             throw AuthError.unsupportedAlgorithm(decoded.header.alg)
         }
 
-        // 3. Check the claims
-        try validateClaims(decoded.payload)
-
-        // 4. Check the signature
+        // 3. Check the signature, before anything reads a claim out of the token
         try await verifySignature(decoded)
+
+        // 4. Check the claims
+        try validateClaims(decoded.payload)
 
         // 5. Hand back the verified token
         return VerifiedToken(payload: decoded.payload)
@@ -94,7 +95,7 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
 
     // MARK: - Private Methods
 
-    /// Checks the time, audience, issuer, and subject claims of a decoded but still unverified token.
+    /// Checks the time, audience, issuer, and subject claims of a decoded token.
     private func validateClaims(_ payload: JWTPayload) throws {
         let now = Date()
 
@@ -325,18 +326,18 @@ public final class IDTokenVerifier: IDTokenVerifying, Sendable {
         )
     }
 
-    /// Decodes a token without verifying it, for use against the Firebase Auth emulator.
+    /// Checks everything a signature-less environment can check, for use against the Firebase Auth
+    /// emulator.
     ///
-    /// Emulator tokens carry no signature, so nothing here is evidence of anything: the only check is
-    /// that `sub` is non-empty. `exp`, `iat`, `auth_time`, `aud`, and `iss` are not looked at, so an
-    /// expired token minted for another project is accepted.
+    /// Emulator tokens are unsigned, so the signature step has nothing to work with and the token's
+    /// origin cannot be established. Everything else is checked exactly as in production: the token
+    /// has to decode into three parts with the required claims, and `exp`, `iat`, `auth_time`, `aud`,
+    /// `iss`, and `sub` all have to hold. An expired token, or one minted for another project, is
+    /// rejected here too.
     private func verifyEmulatorToken(_ idToken: String) throws -> VerifiedToken {
         let decoded = try jwtDecoder.decode(idToken)
 
-        // The only check: `sub` is present
-        guard !decoded.payload.sub.isEmpty else {
-            throw AuthError.userNotFound
-        }
+        try validateClaims(decoded.payload)
 
         return VerifiedToken(payload: decoded.payload)
     }

@@ -167,35 +167,45 @@ extension FirestoreModelMacro: MemberMacro {
         return properties
     }
 
-    /// Reports whether the declaration is a stored property that belongs in the mapping.
+    /// Reports whether the declaration is an instance stored property that belongs in the mapping.
     ///
-    /// Detection works off an explicit accessor list: a `get` or `set` accessor means computed,
-    /// while `willSet`/`didSet` still count as stored. A getter written in shorthand
-    /// (`var name: String { "" }`) parses as a code block rather than an accessor list and is
-    /// therefore reported as stored.
+    /// A property is computed, and so left out, in either of the two shapes an accessor block can
+    /// take: a shorthand getter written as a code block (`var name: String { "" }`), or an accessor
+    /// list holding a `get` or `set`. An accessor list of only `willSet`/`didSet` observers leaves
+    /// the property stored.
+    ///
+    /// `static` and `class` members are left out as well: they hold no per-document state, and a
+    /// `CodingKeys` case naming one does not compile.
     private static func isStoredProperty(_ varDecl: VariableDeclSyntax) -> Bool {
         guard let binding = varDecl.bindings.first else {
             return false
         }
 
-        // An accessor block may mean the property is computed
-        if let accessorBlock = binding.accessorBlock {
-            // A get accessor means computed
-            if case .accessors(let accessors) = accessorBlock.accessors {
-                for accessor in accessors {
-                    if accessor.accessorSpecifier.tokenKind == .keyword(.get) ||
-                        accessor.accessorSpecifier.tokenKind == .keyword(.set) {
-                        // willSet/didSet leave the property stored
-                        if accessor.accessorSpecifier.tokenKind != .keyword(.willSet) &&
-                            accessor.accessorSpecifier.tokenKind != .keyword(.didSet) {
-                            return false
-                        }
-                    }
-                }
-            }
+        // A type-level property is not part of a document's fields
+        let isTypeLevel = varDecl.modifiers.contains { modifier in
+            modifier.name.tokenKind == .keyword(.static) || modifier.name.tokenKind == .keyword(.class)
+        }
+        if isTypeLevel {
+            return false
         }
 
-        return true
+        guard let accessorBlock = binding.accessorBlock else {
+            // No accessor block at all: a plain stored property
+            return true
+        }
+
+        switch accessorBlock.accessors {
+        case .getter:
+            // Shorthand getter: `var name: String { "" }`
+            return false
+        case .accessors(let accessors):
+            // Only `willSet`/`didSet` observers leave the property stored
+            let hasGetterOrSetter = accessors.contains { accessor in
+                accessor.accessorSpecifier.tokenKind == .keyword(.get)
+                    || accessor.accessorSpecifier.tokenKind == .keyword(.set)
+            }
+            return !hasGetterOrSetter
+        }
     }
 
     /// Generates the `CodingKeys` enum, one case per mapped property.
