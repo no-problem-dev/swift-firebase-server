@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-11
+
 ### Breaking Changes
 
 - **Split `updateDocument` into `setDocument` and `updateDocument`**

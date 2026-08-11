@@ -67,7 +67,7 @@ guides are written in Japanese.
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", .upToNextMajor(from: "1.0.17"))
+    .package(url: "https://github.com/no-problem-dev/swift-firebase-server.git", from: "2.0.0")
 ]
 
 .target(
