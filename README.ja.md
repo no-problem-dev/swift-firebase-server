@@ -51,12 +51,12 @@ let activeUsers = try await schema.users.execute(
 
 API リファレンスは DocC カタログから公開している。
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) — Firestore の REST クライアント・パス・クエリ
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) — スキーマとモデルのマクロ
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) — Cloud Storage クライアント
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) — Storage スキーマのマクロ
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) — ID トークン検証と Admin API
-- [EventarcServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/eventarcserver/) — CloudEvents ペイロードのデコード
+- [FirestoreServer](Sources/FirestoreServer/Documentation.docc) — Firestore の REST クライアント・パス・クエリ
+- [FirestoreSchema](Sources/FirestoreSchema/Documentation.docc) — スキーマとモデルのマクロ
+- [FirebaseStorageServer](Sources/FirebaseStorageServer/Documentation.docc) — Cloud Storage クライアント
+- [FirebaseStorageSchema](Sources/FirebaseStorageSchema/Documentation.docc) — Storage スキーマのマクロ
+- [FirebaseAuthServer](Sources/FirebaseAuthServer/Documentation.docc) — ID トークン検証と Admin API
+- [EventarcServer](Sources/EventarcServer/Documentation.docc) — CloudEvents ペイロードのデコード
 
 長めのガイドは [`documentation/`](documentation/README.md) に置いてある。DSL の内部については
 [Swift マクロリファレンス](documentation/references/macros/README.md) を参照。
