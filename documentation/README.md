@@ -38,8 +38,8 @@
 
 ## APIリファレンス（DocC）
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/firestoreserver/documentation/firestoreserver/)
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/firestoreschema/documentation/firestoreschema/)
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageserver/documentation/firebasestorageserver/)
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/firebasestorageschema/documentation/firebasestorageschema/)
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/firebaseauthserver/documentation/firebaseauthserver/)
+- [FirestoreServer](../Sources/FirestoreServer/Documentation.docc)
+- [FirestoreSchema](../Sources/FirestoreSchema/Documentation.docc)
+- [FirebaseStorageServer](../Sources/FirebaseStorageServer/Documentation.docc)
+- [FirebaseStorageSchema](../Sources/FirebaseStorageSchema/Documentation.docc)
+- [FirebaseAuthServer](../Sources/FirebaseAuthServer/Documentation.docc)

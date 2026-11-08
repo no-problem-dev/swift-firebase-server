@@ -51,12 +51,12 @@ let activeUsers = try await schema.users.execute(
 
 The full API reference is published from the DocC catalogs:
 
-- [FirestoreServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreserver/) — Firestore REST client, paths, and queries
-- [FirestoreSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firestoreschema/) — schema and model macros
-- [FirebaseStorageServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageserver/) — Cloud Storage client
-- [FirebaseStorageSchema](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebasestorageschema/) — Storage schema macros
-- [FirebaseAuthServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/firebaseauthserver/) — ID token verification and the Admin API
-- [EventarcServer](https://no-problem-dev.github.io/swift-firebase-server/documentation/eventarcserver/) — CloudEvents payload decoding
+- [FirestoreServer](Sources/FirestoreServer/Documentation.docc) — Firestore REST client, paths, and queries
+- [FirestoreSchema](Sources/FirestoreSchema/Documentation.docc) — schema and model macros
+- [FirebaseStorageServer](Sources/FirebaseStorageServer/Documentation.docc) — Cloud Storage client
+- [FirebaseStorageSchema](Sources/FirebaseStorageSchema/Documentation.docc) — Storage schema macros
+- [FirebaseAuthServer](Sources/FirebaseAuthServer/Documentation.docc) — ID token verification and the Admin API
+- [EventarcServer](Sources/EventarcServer/Documentation.docc) — CloudEvents payload decoding
 
 Longer-form guides live in [`documentation/`](documentation/README.md), including a
 [Swift macro reference](documentation/references/macros/README.md) for the DSL internals. Those
